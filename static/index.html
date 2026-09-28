@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache-Craft | Semantic Cache Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ===== ANIMATED BACKGROUND ===== */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+            z-index: -1;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo h1 {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c7d2fe, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo span {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 100px;
+            font-size: 13px;
+            color: #22c55e;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 40px;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        /* ===== METRICS CARDS ===== */
+        .metrics-row {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #f9fafb;
+        }
+
+        .metric-value.hit-rate {
+            background: linear-gradient(135deg, #22c55e, #4ade80);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .metric-value.latency {
+            background: linear-gradient(135deg, #6366f1, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ===== CHAT AREA ===== */
+        .chat-section {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .chat-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 20px;
+            min-height: 420px;
+            max-height: 420px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-box::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-box::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-box::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+        }
+
+        .message {
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+        }
+
+        .message.system {
+            align-self: flex-start;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.system .message-bubble {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom-left-radius: 4px;
+        }
+
+        .cache-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+
+        .cache-tag.hit {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .cache-tag.miss {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .meta-info {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 6px;
+        }
+
+        /* ===== INPUT AREA ===== */
+        .input-area {
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            color: #f9fafb;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-area input:focus {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .input-area input::placeholder {
+            color: #4b5563;
+        }
+
+        .send-btn {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            border: none;
+            border-radius: 14px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .send-btn:active {
+            transform: translateY(0);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .cache-list {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 20px;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .cache-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .cache-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+        }
+
+        .cache-entry {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            transition: background 0.2s ease;
+        }
+
+        .cache-entry:last-child {
+            border-bottom: none;
+        }
+
+        .cache-entry:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .cache-entry-q {
+            font-size: 13px;
+            font-weight: 500;
+            color: #d1d5db;
+            margin-bottom: 4px;
+        }
+
+        .cache-entry-a {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .cache-entry-hits {
+            font-size: 11px;
+            color: #4ade80;
+            margin-top: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #4b5563;
+            font-size: 13px;
+        }
+
+        /* ===== ACTIONS ===== */
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            color: #9ca3af;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e5e7eb;
+        }
+
+        .action-btn.danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        /* ===== WELCOME MESSAGE ===== */
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+            color: #4b5563;
+        }
+
+        .welcome h3 {
+            font-size: 16px;
+            color: #9ca3af;
+            margin-bottom: 8px;
+        }
+
+        .welcome p {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 16px;
+            }
+            .metrics-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* ===== LOADING SPINNER ===== */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #a78bfa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">C</div>
+            <div>
+                <h1>Cache-Craft</h1>
+                <span>Autonomous Semantic RAG Router</span>
+            </div>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            System Online
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <div class="container">
+        <!-- METRICS ROW -->
+        <div class="metrics-row">
+            <div class="metric-card">
+                <div class="metric-label">Total Queries</div>
+                <div class="metric-value" id="totalQueries">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Cache Hit Rate</div>
+                <div class="metric-value hit-rate" id="hitRate">0%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Avg Latency</div>
+                <div class="metric-value latency" id="avgLatency">0ms</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Cache Size</div>
+                <div class="metric-value" id="cacheSize">0</div>
+            </div>
+        </div>
+
+        <!-- CHAT SECTION -->
+        <div class="chat-section">
+            <div class="section-title">Query Interface</div>
+            <div class="chat-box" id="chatBox">
+                <div class="welcome">
+                    <h3>Welcome to Cache-Craft</h3>
+                    <p>Ask any question below. The system will check for<br>semantically similar cached responses before<br>calling the expensive LLM API.</p>
+                </div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="queryInput" placeholder="Ask a question..." autocomplete="off">
+                <button class="send-btn" id="sendBtn" onclick="sendQuery()">Send</button>
+            </div>
+        </div>
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="section-title">Cached Entries</div>
+            <div class="cache-list" id="cacheList">
+                <div class="empty-state">No entries cached yet.</div>
+            </div>
+            <div class="actions">
+                <button class="action-btn" onclick="seedCache()">Seed Sample Data</button>
+                <button class="action-btn danger" onclick="clearCache()">Clear Cache</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = "http://localhost:8000";
+
+        // ===== SEND QUERY =====
+        async function sendQuery() {
+            const input = document.getElementById("queryInput");
+            const question = input.value.trim();
+            if (!question) return;
+
+            // Add user message
+            addMessage(question, "user");
+            input.value = "";
+            document.getElementById("sendBtn").disabled = true;
+
+            try {
+                const res = await fetch(`${API}/api/query`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question })
+                });
+                const data = await res.json();
+
+                if (data.status === "CACHE_HIT") {
+                    addSystemMessage(data.response, "hit", data.similarity_score, data.latency_ms, data.source, data.original_query);
+                } else {
+                    // Cache miss — show the actual LLM response (or error if LLM unavailable)
+                    const answer = data.response || "[No response from LLM]";
+                    addSystemMessage(answer, "miss", data.similarity_score, data.latency_ms, data.source, data.closest_query);
+                }
+            } catch (err) {
+                addSystemMessage("Error connecting to backend. Is the server running?", "miss", 0, 0, "Error", null);
+            }
+
+            document.getElementById("sendBtn").disabled = false;
+            refreshMetrics();
+            refreshCache();
+        }
+
+        // ===== ADD MESSAGES TO CHAT =====
+        function addMessage(text, type) {
+            const chatBox = document.getElementById("chatBox");
+            // Remove welcome message if present
+            const welcome = chatBox.querySelector(".welcome");
+            if (welcome) welcome.remove();
+
+            const msg = document.createElement("div");
+            msg.className = `message ${type}`;
+            msg.innerHTML = `<div class="message-bubble">${escapeHtml(text)}</div>`;
+            chatBox.appendChild(msg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addSystemMessage(text, cacheStatus, score, latency, source, matchedQuery) {
+            const chatBox = document.getElementById("chatBox");
+            const msg = document.createElement("div");
+            msg.className = "message system";
+            
+            let matchInfo = "";
+            if (matchedQuery && cacheStatus === "hit") {
+                matchInfo = `<div class="meta-info">Matched: "${escapeHtml(matchedQuery)}"</div>`;
+            }
+
+            msg.innerHTML = `
+                <div class="message-bubble">
+                    ${escapeHtml(text)}
+                    <div class="cache-tag ${cacheStatus}">
+                        ${cacheStatus === "hit" ? "CACHE HIT" : "CACHE MISS"} 
+                        ${score > 0 ? " | " + (score * 100).toFixed(1) + "% match" : ""}
+                    </div>
+                    ${matchInfo}
+                    <div class="meta-info">${source} | ${latency}ms</div>
+                </div>
+            `;
+            chatBox.appendChild(msg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // ===== REFRESH METRICS =====
+        async function refreshMetrics() {
+            try {
+                const res = await fetch(`${API}/api/metrics`);
+                const data = await res.json();
+                document.getElementById("totalQueries").textContent = data.total_queries;
+                document.getElementById("hitRate").textContent = data.hit_rate_percent + "%";
+                document.getElementById("avgLatency").textContent =
+                    (data.avg_hit_latency_ms != null ? data.avg_hit_latency_ms.toFixed(1) : "0") + "ms";
+                document.getElementById("cacheSize").textContent = data.cache_size;
+            } catch (e) {}
+        }
+
+        // ===== REFRESH CACHE LIST =====
+        async function refreshCache() {
+            try {
+                const res = await fetch(`${API}/api/cache`);
+                const data = await res.json();
+                const list = document.getElementById("cacheList");
+
+                if (data.entries.length === 0) {
+                    list.innerHTML = '<div class="empty-state">No entries cached yet.</div>';
+                    return;
+                }
+
+                list.innerHTML = data.entries.map(e => `
+                    <div class="cache-entry">
+                        <div class="cache-entry-q">${escapeHtml(e.query)}</div>
+                        <div class="cache-entry-a">${escapeHtml(e.response)}</div>
+                        <div class="cache-entry-hits">Hits: ${e.hit_count}</div>
+                    </div>
+                `).join("");
+            } catch (e) {}
+        }
+
+        // ===== SEED SAMPLE DATA =====
+        async function seedCache() {
+            const samples = [
+                { question: "What was our total revenue for Q3 2026?", answer: "The total revenue for Q3 2026 was $4.2 million, representing a 15% increase over Q2 driven primarily by enterprise SaaS subscriptions." },
+                { question: "How many active users do we have?", answer: "As of August 2026, the platform has 28,500 monthly active users (MAU), with a 12% month-over-month growth rate." },
+                { question: "What is the company's refund policy?", answer: "Our refund policy allows full refunds within 30 days of purchase. After 30 days, a prorated refund is issued based on usage." },
+                { question: "When are the office holiday dates for December?", answer: "The office will be closed from December 23 to January 2. December 22 is a half-day. Regular hours resume January 3." },
+                { question: "What programming languages does the team use?", answer: "The engineering team primarily uses Python for backend services, TypeScript/React for frontend, and Go for microservices. SQL and Redis are used for data layers." }
+            ];
+
+            for (const s of samples) {
+                await fetch(`${API}/api/store`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(s)
+                });
+            }
+
+            refreshCache();
+            refreshMetrics();
+            addMessage("Sample data loaded! Try asking similar questions.", "system");
+            const chatBox = document.getElementById("chatBox");
+            const welcome = chatBox.querySelector(".welcome");
+            if (welcome) welcome.remove();
+            const msg = document.createElement("div");
+            msg.className = "message system";
+            msg.innerHTML = `<div class="message-bubble">5 sample Q&A pairs have been loaded into the cache. Try asking a similar question like:<br><br><em>"How much money did we make last quarter?"</em><br><em>"What's the refund policy?"</em><br><em>"Tell me the holiday schedule for December"</em></div>`;
+            chatBox.appendChild(msg);
+        }
+
+        // ===== CLEAR CACHE =====
+        async function clearCache() {
+            await fetch(`${API}/api/cache`, { method: "DELETE" });
+            refreshCache();
+            refreshMetrics();
+        }
+
+        // ===== UTILITY =====
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== ENTER KEY =====
+        document.getElementById("queryInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") sendQuery();
+        });
+
+        // ===== INITIAL LOAD =====
+        refreshMetrics();
+        refreshCache();
+    </script>
+</body>
+</html>

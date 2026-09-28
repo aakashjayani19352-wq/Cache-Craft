@@ -1,0 +1,77 @@
+services:
+  # ============================================================
+  # 1. Database: PostgreSQL 16 with pgvector Extension
+  # ============================================================
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: cachecraft_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cachecraft
+      POSTGRES_PASSWORD: cachepassword
+      POSTGRES_DB: cachecraft_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cachecraft -d cachecraft_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # 2. In-Memory Hot Cache: Redis 7 with LRU Eviction
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: cachecraft_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================
+  # 3. Core Engine: FastAPI Backend Service
+  # ============================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: cachecraft_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://cachecraft:cachepassword@db:5432/cachecraft_db
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+  # ============================================================
+  # 4. User Interface: Next.js 15 App Router Frontend
+  # ============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cachecraft_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

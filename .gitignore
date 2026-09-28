@@ -1,0 +1,46 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Large Installers and Archives (>100MB)
+*.exe
+*.zip
+*.tar.gz
+files/*.exe
+files/*.zip
+files/platform-tools-latest-windows/
+files/friend*
+files/friends*
+4th reportinggggg.docx
+scratch_test.docx
+scratch/extracted_imgs/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Temporary Word Lock Files & OS Files
+~$*
+Thumbs.db
+.DS_Store
+
+# Scratch / Cache
+.cache/
+.pytest_cache/
+scratch/test_*.png
