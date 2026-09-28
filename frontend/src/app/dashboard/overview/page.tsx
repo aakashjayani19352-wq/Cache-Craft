@@ -36,7 +36,8 @@ export default function OverviewPage() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/metrics');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const res = await fetch(`${apiUrl}/api/metrics`);
         if (!res.ok) throw new Error('Network response was not ok');
         const data = await res.json();
         setMetrics(data);

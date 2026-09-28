@@ -91,8 +91,9 @@ export default function ChatClient() {
       .map((m) => ({ role: m.role, content: m.content }));
     history.push({ role: 'user', content: trimmed });
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     try {
-      const res = await fetch('http://localhost:8000/api/query', {
+      const res = await fetch(`${apiUrl}/api/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +125,7 @@ export default function ChatClient() {
         {
           id: Date.now().toString(),
           role: 'assistant',
-          content: '⚠️ **Connection Error**: Unable to reach backend at `http://localhost:8000`. Please verify the API server is active.',
+          content: `⚠️ **Connection Error**: Unable to reach backend at \`${apiUrl}\`. Please verify the API server is active.`,
         },
       ]);
     } finally {
