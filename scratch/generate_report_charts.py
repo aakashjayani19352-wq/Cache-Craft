@@ -401,10 +401,6 @@ HTML_BLOCK_DIAGRAM = """<!DOCTYPE html>
   <div class="watermark">CACHE-CRAFT</div>
 
   <div class="header">
-    <div class="badge-a-plus">
-      <div class="grade">A+</div>
-      <div class="sub">NAAC ACCREDITED</div>
-    </div>
     <h1>Block Diagram</h1>
     <h2>Cache-Craft – Autonomous Semantic RAG Router & Multi-Tier Caching Middleware</h2>
   </div>
@@ -1021,23 +1017,9 @@ HTML_UML_DIAGRAM = """<!DOCTYPE html>
 </head>
 <body>
 
-  <!-- PPSU Banner -->
-  <div class="academic-banner">
-    <div class="banner-left">
-      <div class="logo-badge">PPSU</div>
-      <div class="univ-title">
-        <h3>P P SAVANI UNIVERSITY</h3>
-        <p>DEPARTMENT OF INFORMATION TECHNOLOGY</p>
-      </div>
-    </div>
-    <div class="banner-right">
-      <div class="naac-tag">NAAC ACCREDITED A+ GRADE</div>
-      <div class="dept-tag">School of Engineering</div>
-    </div>
-  </div>
-
-  <div class="main-title">
+  <div class="main-title" style="margin-top: 10px; margin-bottom: 25px;">
     <h1>Cache-Craft – Unified UML Architectural Blueprint</h1>
+    <h2 style="font-size: 15px; font-weight: 600; color: #475569; margin-top: 6px;">Comprehensive Structural & Behavioral System Models</h2>
   </div>
 
   <div class="uml-grid">
@@ -1453,23 +1435,9 @@ HTML_PROCESS_FLOW = """<!DOCTYPE html>
 </head>
 <body>
 
-  <!-- Academic Banner -->
-  <div class="academic-banner">
-    <div class="banner-left">
-      <div class="logo-badge">PPSU</div>
-      <div class="univ-title">
-        <h3>P P SAVANI UNIVERSITY</h3>
-        <p>DEPARTMENT OF INFORMATION TECHNOLOGY</p>
-      </div>
-    </div>
-    <div class="banner-right">
-      <div class="naac-tag">NAAC ACCREDITED A+ GRADE</div>
-      <div class="dept-tag">School of Engineering</div>
-    </div>
-  </div>
-
-  <div class="main-title">
+  <div class="main-title" style="margin-top: 10px; margin-bottom: 25px;">
     <h1>Process Flow Diagram</h1>
+    <h2 style="font-size: 15px; font-weight: 600; color: #475569; margin-top: 6px;">Cache-Craft End-to-End Query Execution & Multi-Tier Routing Pipeline</h2>
   </div>
 
   <div class="process-grid">
