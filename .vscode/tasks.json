@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start All Services (Docker Compose)",
+      "type": "shell",
+      "command": "docker compose up -d --build",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Stop All Services (Docker Compose)",
+      "type": "shell",
+      "command": "docker compose down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run 1,200 Query Benchmark Suite",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python.exe seed_cache.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Regenerate Academic Report & PDF",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python.exe create_report_4.py",
+      "problemMatcher": []
+    }
+  ]
+}
