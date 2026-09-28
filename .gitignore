@@ -43,4 +43,5 @@ Thumbs.db
 # Scratch / Cache
 .cache/
 .pytest_cache/
+scratch/dns_proxy.py
 scratch/test_*.png
