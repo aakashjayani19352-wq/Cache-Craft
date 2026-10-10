@@ -18,8 +18,8 @@ load_dotenv()
 
 OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 OLLAMA_TIMEOUT_S = 45          # Allows cold 7B model loading into GPU VRAM
-GEMINI_CONNECT_TIMEOUT_S = 3.5  # Fast-fail connect timeout for weak/unstable networks
-GEMINI_READ_TIMEOUT_S = 12.0    # Generation read timeout for cloud requests
+GEMINI_CONNECT_TIMEOUT_S = 5.0   # Robust connect timeout
+GEMINI_READ_TIMEOUT_S = 30.0    # Allows ample generation read window for cloud LLM requests
 
 # Gemini is the default cloud model
 DEFAULT_MODEL = "gemini-3.8-flash"
@@ -247,11 +247,19 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-3.8-
         contents = [{"role": "user", "parts": [{"text": question}]}]
 
     try:
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "thinkingConfig": {
+                    "thinkingBudget": 0
+                }
+            }
+        }
         response = requests.post(
             url,
-            json={"contents": contents},
+            json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)  # 3.5s connect, 12s read
+            timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
         )
 
         if response.status_code == 200:
