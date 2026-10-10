@@ -12,6 +12,8 @@ interface HealthState {
   llm: 'ok' | 'error' | 'loading';
   llm_model: string;
   cache_size: number;
+  offline_mode: boolean;
+  circuit_breaker_active: boolean;
 }
 
 function StatusPill({ label, status }: { label: string; status: 'ok' | 'error' | 'loading' }) {
@@ -43,6 +45,8 @@ export default function Header() {
     llm: 'loading',
     llm_model: '...',
     cache_size: 0,
+    offline_mode: false,
+    circuit_breaker_active: false,
   });
 
   useEffect(() => {
@@ -64,6 +68,8 @@ export default function Header() {
           llm: hData.llm === 'ok' ? 'ok' : 'error',
           llm_model: hData.llm_model || 'unknown',
           cache_size: mData.cache_size || 0,
+          offline_mode: Boolean(hData.offline_mode),
+          circuit_breaker_active: Boolean(hData.circuit_breaker?.is_open),
         });
       } catch {
         setHealth((prev) => ({ ...prev, redis: 'error', db: 'error', llm: 'error' }));
@@ -86,6 +92,24 @@ export default function Header() {
       <div className='flex items-center gap-2 px-4'>
         {/* Live Infrastructure Health Pills */}
         <div className='hidden sm:flex items-center gap-1.5 mr-2'>
+          {health.circuit_breaker_active && (
+            <span
+              className='flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 animate-pulse'
+              title='Circuit Breaker: Auto-switched to Local LLM due to weak network'
+            >
+              <span className='w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.7)]' />
+              Auto-Offline
+            </span>
+          )}
+          {health.offline_mode && (
+            <span
+              className='flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400'
+              title='Offline Mode: 100% Local Inference'
+            >
+              <span className='w-1.5 h-1.5 rounded-full bg-indigo-500' />
+              Offline
+            </span>
+          )}
           <StatusPill label='pgvector' status={health.db} />
           <StatusPill
             label={health.cache_size > 0 ? `${health.cache_size} Vectors` : 'Cache'}

@@ -5,10 +5,21 @@ from pgvector.psycopg import register_vector
 import json
 import numpy as np
 
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://cachecraft:cachepassword@localhost:5433/cachecraft_db")
+import time
+
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://cachecraft:cachepassword@127.0.0.1:5433/cachecraft_db")
+_last_db_failure_time = 0.0
 
 def _get_raw_conn():
-    return psycopg.connect(DB_URL, row_factory=psycopg.rows.dict_row)
+    global _last_db_failure_time
+    # If connection failed within the last 30 seconds, fail-fast (< 0.01ms) without blocking
+    if time.time() - _last_db_failure_time < 30.0:
+        raise psycopg.OperationalError("Database temporarily unreachable (fast fail)")
+    try:
+        return psycopg.connect(DB_URL, row_factory=psycopg.rows.dict_row, connect_timeout=1)
+    except (psycopg.OperationalError, psycopg.errors.ConnectionTimeout) as e:
+        _last_db_failure_time = time.time()
+        raise e
 
 def _get_conn():
     conn = _get_raw_conn()
@@ -95,20 +106,26 @@ def init_db():
     print(f"[Database] Ready at {DB_URL}")
 
 def get_setting(key: str) -> str | None:
-    with _get_conn() as conn:
-        with conn.cursor() as cur:
-            row = cur.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
-            return row["value"] if row else None
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                row = cur.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
+                return row["value"] if row else None
+    except Exception:
+        return None
 
 def set_setting(key: str, value: str):
-    with _get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO settings (key, value) VALUES (%s, %s) "
-                "ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value",
-                (key, value)
-            )
-        conn.commit()
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO settings (key, value) VALUES (%s, %s) "
+                    "ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value",
+                    (key, value)
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[Database] Notice: Could not persist setting '{key}': {e}")
 
 def cleanup_expired_entries() -> int:
     """Purge expired cache rows from database."""
@@ -380,4 +397,7 @@ def get_latency_percentiles() -> dict:
                 "p99": round(row["p99"] or 0, 2)
             }
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"[Database] Notice: Database not reachable at import time ({e}). Will connect when PostgreSQL starts.")

@@ -21,7 +21,11 @@ import {
   Trash2,
   Globe,
   Bot,
-  Loader2
+  Loader2,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -42,10 +46,31 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
   const [ttlSeconds, setTtlSeconds] = useState(settings.ttl_seconds ?? 86400);
   const [savingTtl, setSavingTtl] = useState(false);
 
-  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'llama3.2');
+  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'gemini-3.8-flash');
   const [savingModel, setSavingModel] = useState(false);
 
+  const [offlineMode, setOfflineMode] = useState(settings.offline_mode ?? false);
+  const [savingOffline, setSavingOffline] = useState(false);
+
   const [cleaning, setCleaning] = useState(false);
+
+  async function handleToggleOffline(enabled: boolean) {
+    setSavingOffline(true);
+    setOfflineMode(enabled);
+    try {
+      await api.setOfflineMode(enabled);
+      toast.success(
+        enabled
+          ? 'Offline Mode enabled: routing 100% through local Ollama'
+          : 'Cloud Mode restored: Gemini Cloud active with local fallback'
+      );
+    } catch {
+      toast.error('Failed to update offline mode');
+      setOfflineMode(!enabled);
+    } finally {
+      setSavingOffline(false);
+    }
+  }
 
   async function handleSaveThreshold() {
     setSavingThreshold(true);
@@ -135,19 +160,33 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
 
   const modelsList = settings.available_models || [
     {
-      id: 'llama3.2',
-      name: 'Ollama (llama3.2 — 3B Local)',
-      provider: 'ollama',
-      type: 'local',
-      description: 'Fast, private, 100% offline local inference',
+      id: 'auto',
+      name: 'Auto-Router (Dynamic Prompt-Aware)',
+      provider: 'auto',
+      type: 'hybrid',
+      description: 'Dynamically inspects prompt intent & complexity — switches to best local or cloud model in real time',
     },
     {
       id: 'gemini-3.8-flash',
       name: 'Google Gemini 3.8 Flash (Cloud)',
       provider: 'gemini',
       type: 'cloud',
-      description: 'High-speed cloud LLM with automatic local fallback',
-    }
+      description: 'High-speed cloud LLM — primary inference engine with automatic local fallback',
+    },
+    {
+      id: 'qwen2.5:7b',
+      name: 'Ollama (Qwen 2.5 — 7B Local)',
+      provider: 'ollama',
+      type: 'local',
+      description: 'Flagship 7B local model on RTX 4060 — state-of-the-art coding, math, and complex reasoning (4.7 GB)',
+    },
+    {
+      id: 'llama3.2',
+      name: 'Ollama (Llama 3.2 — 3B Local)',
+      provider: 'ollama',
+      type: 'local',
+      description: 'Ultra-fast 3B local model — instant response time for conversational chit-chat & greetings (2.0 GB)',
+    },
   ];
 
   return (
@@ -161,6 +200,92 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
           Calibrate semantic similarity thresholds, manage cache TTL lifecycles, and select LLM inference providers.
         </p>
       </div>
+
+      {/* Card: Offline Mode & Weak-Network Resilience */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+      >
+        <Card className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-card/70 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] overflow-hidden">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-2xl ${offlineMode ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                  {offlineMode ? <WifiOff className="w-5 h-5" /> : <Wifi className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold">Offline Mode & Network Resilience</CardTitle>
+                    <Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+                      offlineMode 
+                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400' 
+                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {offlineMode ? '100% Offline Active' : 'Cloud First + Auto-Fallback'}
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs mt-0.5">
+                    Instant failover to local GPU models when network is weak, with optional 100% offline air-gapped mode.
+                  </CardDescription>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                {settings.circuit_breaker?.is_open && (
+                  <Badge variant="outline" className="rounded-full px-2.5 py-1 text-xs font-medium border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 animate-pulse">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Circuit Breaker Active ({settings.circuit_breaker.cooldown_seconds}s)
+                  </Badge>
+                )}
+                <Button
+                  variant={offlineMode ? "default" : "outline"}
+                  size="sm"
+                  disabled={savingOffline}
+                  onClick={() => handleToggleOffline(!offlineMode)}
+                  className={`rounded-full px-4 text-xs font-semibold transition-all ${
+                    offlineMode
+                      ? "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20"
+                      : "border-black/10 dark:border-white/10 hover:bg-muted"
+                  }`}
+                >
+                  {savingOffline ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                  ) : offlineMode ? (
+                    <WifiOff className="w-3.5 h-3.5 mr-1.5" />
+                  ) : (
+                    <Wifi className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  {offlineMode ? 'Active (Click to Restore Cloud)' : 'Switch to Offline Mode'}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              <div className="p-3.5 rounded-2xl bg-muted/40 border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">Active Inference Route</span>
+                <span className="text-sm font-bold mt-1 flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${offlineMode ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                  {offlineMode ? 'Local Ollama (RTX 4060 GPU)' : 'Gemini Cloud (with Local Fallback)'}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-muted/40 border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">Weak Network Failover</span>
+                <span className="text-sm font-bold mt-1 text-emerald-600 dark:text-emerald-400">
+                  3.5s Aggressive Fail-Fast
+                </span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-muted/40 border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">Mid-Session Switch</span>
+                <span className="text-sm font-bold mt-1 text-indigo-600 dark:text-indigo-400">
+                  Live in Chat & Settings
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Card 1: Similarity Threshold Slider */}
@@ -203,7 +328,10 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                   max={0.99}
                   step={0.01}
                   value={[threshold]}
-                  onValueChange={([v]) => setThreshold(v)}
+                  onValueChange={(val) => {
+                    const v = Array.isArray(val) ? val[0] : (typeof val === 'number' ? val : 0.85);
+                    if (v !== undefined) setThreshold(v);
+                  }}
                   className="py-2 cursor-pointer"
                 />
 

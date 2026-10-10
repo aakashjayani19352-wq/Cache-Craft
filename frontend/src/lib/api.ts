@@ -75,6 +75,13 @@ export interface Settings {
   ttl_seconds?: number;
   active_model?: string;
   available_models?: ModelOption[];
+  offline_mode?: boolean;
+  preferred_local_model?: string;
+  circuit_breaker?: {
+    is_open: boolean;
+    cooldown_seconds: number;
+    reason: string | null;
+  };
   cache_size: number;
   model: string;
   embedding_dimensions: number;
@@ -87,14 +94,23 @@ export interface QueryResult {
   response: string;
   latency_ms: number;
   source: string;
+  query_hash?: string;
+  similarity_threshold?: number;
   original_query?: string;
   closest_query?: string | null;
+  offline_mode?: boolean;
+  fallback_triggered?: boolean;
+  fallback_reason?: string | null;
+  note?: string | null;
+  routed_model?: string | null;
+  router_category?: string | null;
+  router_reason?: string | null;
 }
 
 // ── API calls ────────────────────────────────────────────────────────────────
 
 export const api = {
-  health: () => apiFetch<{ status: string; database: string; llm: string; model: string }>('/api/health'),
+  health: () => apiFetch<{ status: string; database: string; llm: string; model: string; offline_mode?: boolean; circuit_breaker?: { is_open: boolean; cooldown_seconds: number; reason: string | null } }>('/api/health'),
 
   metrics: () => apiFetch<Metrics>('/api/metrics'),
 
@@ -122,15 +138,21 @@ export const api = {
       body: JSON.stringify({ model })
     }),
 
+  setOfflineMode: (offline_mode: boolean, preferred_local_model?: string) =>
+    apiFetch('/api/settings/offline-mode', {
+      method: 'PUT',
+      body: JSON.stringify({ offline_mode, preferred_local_model })
+    }),
+
   cleanupCache: () =>
     apiFetch<{ status: string; deleted_expired_count: number }>('/api/cache/cleanup', {
       method: 'POST'
     }),
 
-  query: (question: string, messages?: { role: string; content: string }[]) =>
+  query: (question: string, messages?: { role: string; content: string }[], offline_mode?: boolean, model?: string) =>
     apiFetch<QueryResult>('/api/query', {
       method: 'POST',
-      body: JSON.stringify({ question, messages })
+      body: JSON.stringify({ question, messages, offline_mode, model })
     }),
 
   store: (question: string, answer: string) =>

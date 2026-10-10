@@ -23,6 +23,8 @@ frontend/build/
 *.tar.gz
 files/*.exe
 files/*.zip
+files/*.winmd
+files/*.pdf
 files/platform-tools-latest-windows/
 files/friend*
 files/friends*
@@ -43,5 +45,4 @@ Thumbs.db
 # Scratch / Cache
 .cache/
 .pytest_cache/
-scratch/dns_proxy.py
-scratch/test_*.png
+scratch/

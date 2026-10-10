@@ -18,13 +18,16 @@ import {
   Sparkles,
   ArrowRight,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Wifi,
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, type ModelOption } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -32,11 +35,19 @@ interface Message {
   content: string;
   metadata?: {
     latency?: number;
-    hit_type?: 'CACHE_HIT_L1' | 'CACHE_HIT_L2' | 'CACHE_MISS';
+    hit_type?: 'CACHE_HIT_L0' | 'CACHE_HIT_L1' | 'CACHE_HIT_L2' | 'CACHE_MISS';
+    source?: string;
     similarity?: number;
     similarity_threshold?: number;
     query_hash?: string;
     feedback?: 'positive' | 'negative' | null;
+    offline_mode?: boolean;
+    fallback_triggered?: boolean;
+    fallback_reason?: string | null;
+    note?: string | null;
+    routed_model?: string | null;
+    router_category?: string | null;
+    router_reason?: string | null;
   };
 }
 
@@ -57,6 +68,9 @@ export default function ChatClient() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [offlineMode, setOfflineMode] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +80,33 @@ export default function ChatClient() {
 
   useEffect(() => {
     inputRef.current?.focus();
+    api.settings().then((s) => {
+      if (s.offline_mode) setOfflineMode(true);
+      if (s.available_models) {
+        setAvailableModels(s.available_models);
+        const validIds = s.available_models.map((m) => m.id);
+        if (s.active_model && validIds.includes(s.active_model)) {
+          setSelectedModel(s.active_model);
+        } else {
+          setSelectedModel('auto');
+        }
+      }
+    }).catch(() => {});
   }, []);
+
+  const handleToggleOfflineMode = () => {
+    const next = !offlineMode;
+    setOfflineMode(next);
+    api.setOfflineMode(next).catch(() => {});
+    toast.info(next ? 'Switched to Offline Mode (100% Local LLM)' : 'Switched to Cloud Mode (Gemini Active)');
+  };
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    api.setModel(modelId).catch(() => {});
+    const modelObj = availableModels.find((m) => m.id === modelId);
+    toast.success(`Active Model: ${modelObj?.name || modelId}`);
+  };
 
   useEffect(() => {
     if (!isLoading) {
@@ -104,13 +144,30 @@ export default function ChatClient() {
         body: JSON.stringify({
           question: trimmed,
           messages: history.slice(-20),
+          offline_mode: offlineMode,
+          model: selectedModel,
         }),
       });
+      if (!res.ok) {
+        const errorText = await res.text();
+        let errMsg = `Server returned ${res.status}`;
+        try {
+          const errObj = JSON.parse(errorText);
+          if (errObj.detail) errMsg = typeof errObj.detail === 'string' ? errObj.detail : JSON.stringify(errObj.detail);
+        } catch {}
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       
-      let hitType: 'CACHE_MISS' | 'CACHE_HIT_L1' | 'CACHE_HIT_L2' = 'CACHE_MISS';
+      let hitType: 'CACHE_MISS' | 'CACHE_HIT_L0' | 'CACHE_HIT_L1' | 'CACHE_HIT_L2' = 'CACHE_MISS';
       if (data.status === 'CACHE_HIT') {
-        hitType = data.match_type === 'EXACT' ? 'CACHE_HIT_L1' : 'CACHE_HIT_L2';
+        if (data.source && data.source.includes('L0')) {
+          hitType = 'CACHE_HIT_L0';
+        } else if (data.match_type === 'EXACT') {
+          hitType = 'CACHE_HIT_L1';
+        } else {
+          hitType = 'CACHE_HIT_L2';
+        }
       }
 
       const botMessage: Message = {
@@ -120,20 +177,28 @@ export default function ChatClient() {
         metadata: {
           latency: data.latency_ms,
           hit_type: hitType,
+          source: data.source,
           similarity: data.similarity_score,
           similarity_threshold: data.similarity_threshold,
           query_hash: data.query_hash,
           feedback: null,
+          offline_mode: data.offline_mode,
+          fallback_triggered: data.fallback_triggered,
+          fallback_reason: data.fallback_reason,
+          note: data.note,
+          routed_model: data.routed_model,
+          router_category: data.router_category,
+          router_reason: data.router_reason,
         },
       };
       setMessages((prev) => [...prev, botMessage]);
-    } catch {
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `⚠️ **Connection Error**: Unable to reach backend at \`${apiUrl}\`. Please verify the API server is active.`,
+          content: `⚠️ **Connection Error**: ${err?.message || `Unable to reach backend at \`${apiUrl}\`. Please verify the API server is active.`}`,
         },
       ]);
     } finally {
@@ -194,24 +259,27 @@ export default function ChatClient() {
     const meta = msg.metadata;
     if (!meta) return null;
     
+    const isL0 = meta.hit_type === 'CACHE_HIT_L0';
     const isL1 = meta.hit_type === 'CACHE_HIT_L1';
     const isL2 = meta.hit_type === 'CACHE_HIT_L2';
 
-    const pillStyle = isL1 
+    const pillStyle = (isL0 || isL1)
       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 shadow-emerald-500/5' 
       : isL2
       ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 shadow-blue-500/5'
       : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shadow-amber-500/5';
 
-    const dotColor = isL1
+    const dotColor = (isL0 || isL1)
       ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
       : isL2
       ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]'
       : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]';
 
-    const Icon = isL1 ? Zap : isL2 ? Database : Server;
+    const Icon = (isL0 || isL1) ? Zap : isL2 ? Database : Server;
 
-    const label = isL1 
+    const label = isL0
+      ? 'L0 Exact Hit (In-Memory)'
+      : isL1 
       ? 'L1 Cache Hit (Redis)' 
       : isL2
       ? `L2 Semantic Hit (${(meta.similarity! * 100).toFixed(1)}%)`
@@ -228,7 +296,7 @@ export default function ChatClient() {
         transition={{ duration: 0.25 }}
         className="space-y-2 mt-2 select-none"
       >
-        {/* Tier badge + latency */}
+        {/* Tier badge + latency + mode badges */}
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border backdrop-blur-md shadow-sm transition-all ${pillStyle}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
@@ -238,6 +306,34 @@ export default function ChatClient() {
           <span className="text-[11px] text-muted-foreground/75 font-mono flex items-center gap-1">
             ⚡ {meta.latency !== undefined ? `${meta.latency.toFixed(1)}ms` : '—'}
           </span>
+
+          {/* Auto-Fallback Badge (Weak Network) */}
+          {meta.fallback_triggered && (
+            <Badge variant="outline" className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" title={meta.note || meta.fallback_reason || 'Weak network detected: auto-switched to local model'}>
+              <AlertTriangle className="w-2.5 h-2.5 mr-0.5 text-amber-500" />
+              Weak Network: Auto-Switched
+            </Badge>
+          )}
+
+          {/* Dynamic Prompt-Aware Router Badge */}
+          {meta.routed_model && meta.hit_type === 'CACHE_MISS' && (
+            <Badge
+              variant="outline"
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 backdrop-blur-md shadow-sm"
+              title={meta.router_reason || `Prompt classified as ${meta.router_category}`}
+            >
+              <Sparkles className="w-2.5 h-2.5 mr-0.5 text-purple-500" />
+              <span>Auto-Routed: {meta.routed_model} ({meta.router_category})</span>
+            </Badge>
+          )}
+
+          {/* Offline Mode Badge */}
+          {meta.offline_mode && !meta.fallback_triggered && meta.hit_type === 'CACHE_MISS' && !meta.routed_model && (
+            <Badge variant="outline" className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <WifiOff className="w-2.5 h-2.5 mr-0.5" />
+              100% Offline (Local GPU)
+            </Badge>
+          )}
         </div>
 
         {/* Similarity gauge — only shown for L2 semantic hits */}
@@ -332,16 +428,60 @@ export default function ChatClient() {
           </p>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleResetChat}
-          className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all active:scale-95"
-          title="Reset conversation"
-        >
-          <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-          Clear
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Dynamic Model Selector */}
+          <div className="relative">
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              className="appearance-none bg-card/80 hover:bg-card text-foreground border border-black/[0.08] dark:border-white/[0.12] text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 cursor-pointer outline-none transition-all focus:ring-1 focus:ring-blue-500 shadow-sm backdrop-blur-md"
+              title="Select Inference Model or Auto-Router"
+            >
+              <option value="auto">✨ Auto-Router (Prompt-Aware)</option>
+              {availableModels
+                .filter((m) => m.id !== 'auto')
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.type === 'local' ? '💻' : '☁️'} {m.name}
+                  </option>
+                ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+              <svg className="w-3 h-3 fill-current opacity-70" viewBox="0 0 20 20">
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Live Mid-Session Offline Mode Toggle */}
+          <button
+            onClick={handleToggleOfflineMode}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all active:scale-95 ${
+              offlineMode
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                : 'bg-muted/50 border-border/40 text-muted-foreground hover:text-foreground'
+            }`}
+            title={offlineMode ? "Offline Mode active: 100% Local Inference (Click to restore Cloud)" : "Cloud Mode active: Gemini Cloud with fast auto-fallback (Click to switch to Offline Mode)"}
+          >
+            {offlineMode ? (
+              <WifiOff className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+            )}
+            <span>{offlineMode ? 'Offline (Local)' : 'Cloud Active'}</span>
+          </button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetChat}
+            className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all active:scale-95"
+            title="Reset conversation"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+            Clear
+          </Button>
+        </div>
       </div>
 
       {/* Main Glass Chat Canvas */}

@@ -473,9 +473,14 @@
                 <span>Autonomous Semantic RAG Router</span>
             </div>
         </div>
-        <div class="status-badge">
-            <div class="status-dot"></div>
-            System Online
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button id="offlineToggleBtn" onclick="toggleOfflineMode()" style="padding: 6px 14px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #e0e0e0; cursor: pointer; border-radius: 999px; transition: all 0.2s;">
+                🌐 Cloud Active
+            </button>
+            <div class="status-badge">
+                <div class="status-dot"></div>
+                System Online
+            </div>
         </div>
     </header>
 
@@ -531,6 +536,49 @@
 
     <script>
         const API = "http://localhost:8000";
+        let isOfflineMode = false;
+
+        // ===== INITIALIZE SETTINGS =====
+        async function initSettings() {
+            try {
+                const res = await fetch(`${API}/api/settings`);
+                const data = await res.json();
+                if (data.offline_mode) {
+                    isOfflineMode = true;
+                    updateOfflineUI();
+                }
+            } catch (e) {}
+        }
+        initSettings();
+
+        // ===== TOGGLE OFFLINE MODE =====
+        async function toggleOfflineMode() {
+            isOfflineMode = !isOfflineMode;
+            updateOfflineUI();
+            try {
+                await fetch(`${API}/api/settings/offline-mode`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ offline_mode: isOfflineMode })
+                });
+            } catch (e) {}
+        }
+
+        function updateOfflineUI() {
+            const btn = document.getElementById("offlineToggleBtn");
+            if (!btn) return;
+            if (isOfflineMode) {
+                btn.innerHTML = "⚡ 100% Offline (Local)";
+                btn.style.background = "rgba(245, 158, 11, 0.15)";
+                btn.style.borderColor = "rgba(245, 158, 11, 0.4)";
+                btn.style.color = "#fbbf24";
+            } else {
+                btn.innerHTML = "🌐 Cloud Active";
+                btn.style.background = "rgba(255, 255, 255, 0.06)";
+                btn.style.borderColor = "rgba(255, 255, 255, 0.14)";
+                btn.style.color = "#e0e0e0";
+            }
+        }
 
         // ===== SEND QUERY =====
         async function sendQuery() {
@@ -547,19 +595,22 @@
                 const res = await fetch(`${API}/api/query`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ question })
+                    body: JSON.stringify({ 
+                        question,
+                        offline_mode: isOfflineMode
+                    })
                 });
                 const data = await res.json();
 
                 if (data.status === "CACHE_HIT") {
-                    addSystemMessage(data.response, "hit", data.similarity_score, data.latency_ms, data.source, data.original_query);
+                    addSystemMessage(data.response, "hit", data.similarity_score, data.latency_ms, data.source, data.original_query, data);
                 } else {
                     // Cache miss — show the actual LLM response (or error if LLM unavailable)
                     const answer = data.response || "[No response from LLM]";
-                    addSystemMessage(answer, "miss", data.similarity_score, data.latency_ms, data.source, data.closest_query);
+                    addSystemMessage(answer, "miss", data.similarity_score, data.latency_ms, data.source, data.closest_query, data);
                 }
             } catch (err) {
-                addSystemMessage("Error connecting to backend. Is the server running?", "miss", 0, 0, "Error", null);
+                addSystemMessage("Error connecting to backend. Is the server running?", "miss", 0, 0, "Error", null, {});
             }
 
             document.getElementById("sendBtn").disabled = false;
@@ -581,7 +632,7 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        function addSystemMessage(text, cacheStatus, score, latency, source, matchedQuery) {
+        function addSystemMessage(text, cacheStatus, score, latency, source, matchedQuery, data = {}) {
             const chatBox = document.getElementById("chatBox");
             const msg = document.createElement("div");
             msg.className = "message system";
@@ -589,6 +640,13 @@
             let matchInfo = "";
             if (matchedQuery && cacheStatus === "hit") {
                 matchInfo = `<div class="meta-info">Matched: "${escapeHtml(matchedQuery)}"</div>`;
+            }
+
+            let failoverBadge = "";
+            if (data.fallback_triggered) {
+                failoverBadge = `<div class="meta-info" style="color: #fbbf24; font-weight: 500;">⚡ Weak Network: Auto-Switched to Local LLM</div>`;
+            } else if (data.offline_mode && cacheStatus === "miss") {
+                failoverBadge = `<div class="meta-info" style="color: #818cf8; font-weight: 500;">🛡️ 100% Offline Mode (Local GPU)</div>`;
             }
 
             msg.innerHTML = `
@@ -599,6 +657,7 @@
                         ${score > 0 ? " | " + (score * 100).toFixed(1) + "% match" : ""}
                     </div>
                     ${matchInfo}
+                    ${failoverBadge}
                     <div class="meta-info">${source} | ${latency}ms</div>
                 </div>
             `;
