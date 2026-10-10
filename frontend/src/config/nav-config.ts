@@ -19,14 +19,6 @@ export const navGroups: NavGroup[] = [
         isActive: false,
         shortcut: ['c', 'c'],
         items: []
-      },
-      {
-        title: 'Cache Explorer',
-        url: '/dashboard/cache',
-        icon: 'database',
-        isActive: false,
-        shortcut: ['e', 'e'],
-        items: []
       }
     ]
   },
