@@ -11,6 +11,36 @@ from core.llm_client import generate_answer
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
+def _redis_get(key: str):
+    """Safe Redis GET — returns None on any connection error instead of crashing."""
+    try:
+        return redis_client.get(key)
+    except Exception as e:
+        print(f"[CacheRouter] Redis GET unavailable, bypassing L1 (graceful degradation): {e}")
+        return None
+
+def _redis_set(key: str, value: str, **kwargs):
+    """Safe Redis SET — silently ignores failures, L2/L3 remain unaffected."""
+    try:
+        redis_client.set(key, value, **kwargs)
+    except Exception as e:
+        print(f"[CacheRouter] Redis SET failed (non-fatal, L2 pgvector is canonical store): {e}")
+
+def _redis_flush():
+    """Safe Redis FLUSHDB — silently ignores failures."""
+    try:
+        redis_client.flushdb()
+    except Exception as e:
+        print(f"[CacheRouter] Redis FLUSHDB failed (non-fatal): {e}")
+
+def _redis_delete(key: str):
+    """Safe Redis DEL — silently ignores failures."""
+    try:
+        redis_client.delete(key)
+    except Exception as e:
+        print(f"[CacheRouter] Redis DEL failed (non-fatal): {e}")
+
+
 def is_followup_query(query: str) -> bool:
     """Determine whether a query is a conversational follow-up depending on prior context."""
     q = query.strip().lower()
@@ -38,10 +68,28 @@ def is_followup_query(query: str) -> bool:
     return False
 
 
+def _normalize_query(query: str) -> str:
+    """
+    Normalize a query for consistent hash lookup.
+    - Strips whitespace, lowercases
+    - Collapses multiple spaces
+    - Strips trailing punctuation that does not change meaning (?, !, .)
+    This ensures 'What is Redis?' and 'what is redis' produce the same L1 hash.
+    """
+    q = query.strip().lower()
+    # Collapse multiple whitespace to single space
+    q = " ".join(q.split())
+    # Strip trailing question marks / exclamations (keep dots for abbreviations)
+    q = q.rstrip("?!")
+    return q
+
+
 class CacheRouter:
     """
     The central intelligence of Cache-Craft.
     3-Tier lookup: Redis (Hash) → PostgreSQL+pgvector (Semantic) → LLM
+    All Redis operations are fault-tolerant: any Redis outage gracefully degrades
+    to L2 pgvector without surfacing errors to the user.
     """
 
     def __init__(self, similarity_threshold: float = 0.85, ttl_seconds: int = 86400):
@@ -50,13 +98,14 @@ class CacheRouter:
         self.ttl_seconds = ttl_seconds
 
     def _hash_query(self, query: str) -> str:
-        """Create a SHA-256 fingerprint of the query text."""
-        normalized = query.strip().lower()
+        """Create a SHA-256 fingerprint of the normalized query text."""
+        normalized = _normalize_query(query)
         return hashlib.sha256(normalized.encode()).hexdigest()
 
     def search(self, query: str, messages: list = None) -> dict:
         """
         The main entry point. 3-tier cache lookup with conversational context support.
+        Redis failures are handled transparently — L2 pgvector is always the fallback.
         """
         query = query.strip()
         if not query:
@@ -89,8 +138,8 @@ class CacheRouter:
 
         query_hash = self._hash_query(lookup_query)
 
-        # --- Tier 1: Redis Exact Hash Match (O(1)) ---
-        redis_hit = redis_client.get(query_hash)
+        # --- Tier 1: Redis Exact Hash Match (O(1)) — fault-tolerant ---
+        redis_hit = _redis_get(query_hash)
         if redis_hit:
             redis_data = json.loads(redis_hit)
             elapsed_ms = (time.time() - start_time) * 1000
@@ -105,7 +154,9 @@ class CacheRouter:
                 "original_query": redis_data["query_text"],
                 "response": redis_data["response_text"],
                 "latency_ms": round(elapsed_ms, 2),
-                "source": "L1 (Redis Cache)"
+                "source": "L1 (Redis Cache)",
+                "query_hash": query_hash,
+                "similarity_threshold": self.threshold,
             }
 
         # --- Tier 2: Semantic Vector Search (PostgreSQL + pgvector) ---
@@ -119,7 +170,9 @@ class CacheRouter:
                 "query_text": best_match["query_text"],
                 "response_text": best_match["response_text"]
             }
-            redis_client.set(query_hash, json.dumps(cache_payload), ex=86400)
+            # Bug fix: respect configured TTL instead of hardcoded 86400
+            redis_kwargs = {"ex": self.ttl_seconds} if self.ttl_seconds and self.ttl_seconds > 0 else {}
+            _redis_set(query_hash, json.dumps(cache_payload), **redis_kwargs)
             
             db.log_query(query, "CACHE_HIT", float(best_match["similarity_score"]), elapsed_ms, best_match["query_text"], "L2 (pgvector)")
             return {
@@ -129,10 +182,12 @@ class CacheRouter:
                 "original_query": best_match["query_text"],
                 "response": best_match["response_text"],
                 "latency_ms": round(elapsed_ms, 2),
-                "source": "L2 (PostgreSQL pgvector)"
+                "source": "L2 (PostgreSQL pgvector)",
+                "similarity_threshold": self.threshold,
+                "query_hash": best_match["query_hash"],
             }
 
-        # --- Tier 3: Cache Miss → Call Ollama LLM with multi-turn history ---
+        # --- Tier 3: Cache Miss → Call LLM with multi-turn history ---
         llm_response = generate_answer(query, messages=messages)
         
         if llm_response["error"] is None:
@@ -144,7 +199,7 @@ class CacheRouter:
                 "response_text": llm_response["answer"]
             }
             redis_kwargs = {"ex": self.ttl_seconds} if self.ttl_seconds and self.ttl_seconds > 0 else {}
-            redis_client.set(query_hash, json.dumps(cache_payload), **redis_kwargs)
+            _redis_set(query_hash, json.dumps(cache_payload), **redis_kwargs)
             
         elapsed_ms = (time.time() - start_time) * 1000
         db.log_query(query, "CACHE_MISS", 0.0, elapsed_ms, None, "LLM API")
@@ -156,7 +211,9 @@ class CacheRouter:
             "closest_query": None,
             "response": llm_response["answer"],
             "latency_ms": round(elapsed_ms, 2),
-            "source": f"LLM API ({llm_response['model']})"
+            "source": f"LLM API ({llm_response['model']})",
+            "query_hash": query_hash,
+            "similarity_threshold": self.threshold,
         }
 
     def store(self, query: str, response: str) -> dict:
@@ -169,8 +226,13 @@ class CacheRouter:
             "response_text": response
         }
         redis_kwargs = {"ex": self.ttl_seconds} if self.ttl_seconds and self.ttl_seconds > 0 else {}
-        redis_client.set(query_hash, json.dumps(cache_payload), **redis_kwargs)
+        _redis_set(query_hash, json.dumps(cache_payload), **redis_kwargs)
         return db.store_entry(query, response, embedding, ttl_seconds=self.ttl_seconds)
+
+    def delete_entry(self, query_hash: str) -> dict:
+        """Delete a single cached entry by its full SHA-256 hash."""
+        _redis_delete(query_hash)
+        return db.delete_entry_by_hash(query_hash)
 
     def set_ttl(self, ttl_seconds: int) -> int:
         """Update and persist TTL duration."""
@@ -202,5 +264,5 @@ class CacheRouter:
 
     def clear_cache(self) -> dict:
         """Wipe both memory cache and database cache."""
-        redis_client.flushdb()
+        _redis_flush()
         return db.clear_all()

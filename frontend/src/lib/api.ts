@@ -154,5 +154,10 @@ export const api = {
     apiFetch('/api/feedback', {
       method: 'POST',
       body: JSON.stringify({ query_hash, is_positive })
+    }),
+
+  deleteEntry: (query_hash: string) =>
+    apiFetch<{ status: string; query_hash: string }>(`/api/cache/${query_hash}`, {
+      method: 'DELETE'
     })
 };

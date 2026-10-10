@@ -118,6 +118,13 @@ class ModelRequest(BaseModel):
     model_config = {"json_schema_extra": {"example": {"model": "llama3.2"}}}
 
 
+class FeedbackRequest(BaseModel):
+    query_hash: str
+    is_positive: bool
+
+    model_config = {"json_schema_extra": {"example": {"query_hash": "abc123...", "is_positive": True}}}
+
+
 # ============================================================
 # Endpoints — Health
 # ============================================================
@@ -268,6 +275,11 @@ def clear_cache():
     return router.clear_cache()
 
 
+@app.delete("/api/cache/{query_hash}", tags=["Cache Management"])
+def delete_entry(query_hash: str):
+    """Delete a single cache entry by its full SHA-256 hash (supports per-entry invalidation)."""
+    return router.delete_entry(query_hash)
+
 @app.post("/api/cache/cleanup", tags=["Cache Management"])
 def cleanup_expired():
     """Trigger cleanup of expired TTL cache entries."""
@@ -332,6 +344,11 @@ def update_model(request: ModelRequest):
         "message": f"Active LLM model set to {request.model}",
     }
 
+
+@app.post("/api/feedback", tags=["Cache Management"])
+def submit_feedback(request: FeedbackRequest):
+    """Submit thumbs-up/down feedback on a cached response. Positive increments score; negative decrements."""
+    return db.update_feedback(request.query_hash, request.is_positive)
 
 # ============================================================
 # Serve Static Frontend

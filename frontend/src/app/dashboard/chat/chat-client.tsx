@@ -16,12 +16,15 @@ import {
   Check, 
   RotateCcw,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -31,6 +34,9 @@ interface Message {
     latency?: number;
     hit_type?: 'CACHE_HIT_L1' | 'CACHE_HIT_L2' | 'CACHE_MISS';
     similarity?: number;
+    similarity_threshold?: number;
+    query_hash?: string;
+    feedback?: 'positive' | 'negative' | null;
   };
 }
 
@@ -45,7 +51,7 @@ export default function ChatClient() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: '### Welcome to Cache-Craft AI\n\nExperience our high-performance **multi-tier semantic cache**. Ask any question to observe real-time caching dynamics:\n\n- **L1 Cache (Redis)**: Sub-millisecond exact match lookup\n- **L2 Cache (pgvector)**: Fast semantic cosine similarity retrieval\n- **L3 Fallback (Ollama)**: Local LLM generation when cache misses\n\n*Tip: Repeat or rephrase a query to witness instantaneous cache hits!*',
+      content: '### Welcome to Cache-Craft AI\n\nExperience our high-performance **multi-tier semantic cache**. Ask any question to observe real-time caching dynamics:\n\n- **L1 Cache (Redis)**: Sub-millisecond exact match lookup\n- **L2 Cache (pgvector)**: Fast semantic cosine similarity retrieval\n- **L3 Fallback (Gemini / Ollama)**: Cloud-first LLM generation when cache misses\n\n*Tip: Repeat or rephrase a query to witness instantaneous cache hits!*',
     },
   ]);
   const [input, setInput] = useState('');
@@ -81,7 +87,6 @@ export default function ChatClient() {
     setInput('');
     setIsLoading(true);
 
-    // Keep focus active in the input immediately
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
@@ -116,6 +121,9 @@ export default function ChatClient() {
           latency: data.latency_ms,
           hit_type: hitType,
           similarity: data.similarity_score,
+          similarity_threshold: data.similarity_threshold,
+          query_hash: data.query_hash,
+          feedback: null,
         },
       };
       setMessages((prev) => [...prev, botMessage]);
@@ -162,7 +170,28 @@ export default function ChatClient() {
     inputRef.current?.focus();
   };
 
-  const renderBadge = (meta: Message['metadata']) => {
+  const handleFeedback = async (msgId: string, queryHash: string | undefined, isPositive: boolean) => {
+    if (!queryHash) {
+      toast.error('No cache entry to rate (this was a live LLM generation)');
+      return;
+    }
+    try {
+      await api.feedback(queryHash, isPositive);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? { ...m, metadata: { ...m.metadata, feedback: isPositive ? 'positive' : 'negative' } }
+            : m
+        )
+      );
+      toast.success(isPositive ? '👍 Positive feedback recorded' : '👎 Negative feedback recorded');
+    } catch {
+      toast.error('Failed to record feedback');
+    }
+  };
+
+  const renderBadge = (msg: Message) => {
+    const meta = msg.metadata;
     if (!meta) return null;
     
     const isL1 = meta.hit_type === 'CACHE_HIT_L1';
@@ -186,23 +215,99 @@ export default function ChatClient() {
       ? 'L1 Cache Hit (Redis)' 
       : isL2
       ? `L2 Semantic Hit (${(meta.similarity! * 100).toFixed(1)}%)`
-      : 'Cache Miss (Ollama LLM)';
+      : 'Cache Miss → LLM Generated';
+
+    const similarityPct = meta.similarity ? meta.similarity * 100 : 0;
+    const thresholdPct = meta.similarity_threshold ? meta.similarity_threshold * 100 : 85;
+    const margin = similarityPct - thresholdPct;
 
     return (
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.2 }}
-        className="flex items-center gap-2 mt-2 select-none"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="space-y-2 mt-2 select-none"
       >
-        <Badge variant="outline" className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border backdrop-blur-md shadow-sm transition-all ${pillStyle}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-          <Icon className="w-3 h-3" />
-          {label}
-        </Badge>
-        <span className="text-[11px] text-muted-foreground/75 font-mono flex items-center gap-1">
-          ⚡ {meta.latency !== undefined ? `${meta.latency.toFixed(1)}ms` : '—'}
-        </span>
+        {/* Tier badge + latency */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border backdrop-blur-md shadow-sm transition-all ${pillStyle}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+            <Icon className="w-3 h-3" />
+            {label}
+          </Badge>
+          <span className="text-[11px] text-muted-foreground/75 font-mono flex items-center gap-1">
+            ⚡ {meta.latency !== undefined ? `${meta.latency.toFixed(1)}ms` : '—'}
+          </span>
+        </div>
+
+        {/* Similarity gauge — only shown for L2 semantic hits */}
+        {isL2 && meta.similarity !== undefined && (
+          <motion.div
+            initial={{ opacity: 0, scaleX: 0.8 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ duration: 0.35, delay: 0.1 }}
+            className="flex items-center gap-2.5 px-0.5"
+          >
+            <span className="text-[10px] text-muted-foreground/60 font-mono whitespace-nowrap">
+              Sim.
+            </span>
+            <div className="flex-1 relative h-1.5 bg-muted/60 rounded-full overflow-hidden max-w-[160px]">
+              {/* Threshold marker */}
+              <div
+                className="absolute top-0 bottom-0 w-px bg-amber-400/70 z-10"
+                style={{ left: `${thresholdPct}%` }}
+                title={`Threshold: ${thresholdPct.toFixed(0)}%`}
+              />
+              {/* Score fill */}
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(similarityPct, 100)}%` }}
+                transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+              />
+            </div>
+            <span className="text-[10px] font-mono font-semibold text-blue-500 whitespace-nowrap">
+              {similarityPct.toFixed(1)}%
+            </span>
+            <span className={`text-[10px] font-mono whitespace-nowrap ${margin >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+              {margin >= 0 ? `+${margin.toFixed(1)}%` : `${margin.toFixed(1)}%`}
+            </span>
+            <span className="text-[10px] text-muted-foreground/50">
+              (threshold {thresholdPct.toFixed(0)}%)
+            </span>
+          </motion.div>
+        )}
+
+        {/* Feedback buttons (for all non-welcome messages that have a query_hash) */}
+        {meta.query_hash && (
+          <div className="flex items-center gap-1 pt-0.5">
+            <span className="text-[10px] text-muted-foreground/40 mr-1">Rate:</span>
+            <button
+              onClick={() => handleFeedback(msg.id, meta.query_hash, true)}
+              disabled={meta.feedback !== null && meta.feedback !== undefined}
+              className={`p-1 rounded-md transition-all text-[11px] flex items-center gap-0.5 ${
+                meta.feedback === 'positive'
+                  ? 'text-emerald-500 bg-emerald-500/10'
+                  : 'text-muted-foreground/50 hover:text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-40'
+              }`}
+              title="Good answer"
+            >
+              <ThumbsUp className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => handleFeedback(msg.id, meta.query_hash, false)}
+              disabled={meta.feedback !== null && meta.feedback !== undefined}
+              className={`p-1 rounded-md transition-all text-[11px] flex items-center gap-0.5 ${
+                meta.feedback === 'negative'
+                  ? 'text-red-500 bg-red-500/10'
+                  : 'text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10 disabled:opacity-40'
+              }`}
+              title="Bad answer"
+            >
+              <ThumbsDown className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </motion.div>
     );
   };
@@ -223,7 +328,7 @@ export default function ChatClient() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Ultra-low latency retrieval powered by Redis, pgvector & Ollama
+            Ultra-low latency retrieval powered by Redis, pgvector &amp; Gemini/Ollama
           </p>
         </div>
 
@@ -303,8 +408,8 @@ export default function ChatClient() {
                       )}
                     </div>
 
-                    {/* Metadata telemetry */}
-                    {renderBadge(msg.metadata)}
+                    {/* Metadata telemetry: badge, similarity gauge, feedback */}
+                    {!isUser && renderBadge(msg)}
                   </div>
                 </motion.div>
               );

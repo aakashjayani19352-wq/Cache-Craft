@@ -32,6 +32,7 @@ export default function CachePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTier, setActiveTier] = useState<FilterTier>('all');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const [deletingHash, setDeletingHash] = useState<string | null>(null);
 
   async function fetchCache() {
     setIsLoading(true);
@@ -67,6 +68,21 @@ export default function CachePage() {
     setCopiedHash(hash);
     toast.success('Copied to clipboard');
     setTimeout(() => setCopiedHash(null), 2000);
+  };
+
+  const handleDeleteEntry = async (fullHash: string) => {
+    if (!confirm('Remove this single entry from the cache?')) return;
+    setDeletingHash(fullHash);
+    try {
+      await api.deleteEntry(fullHash);
+      toast.success('Cache entry removed');
+      setEntries((prev) => prev.filter((e) => e.full_hash !== fullHash));
+      setTotalEntries((prev) => Math.max(0, prev - 1));
+    } catch {
+      toast.error('Failed to delete entry');
+    } finally {
+      setDeletingHash(null);
+    }
   };
 
   const filteredEntries = useMemo(() => {
@@ -276,13 +292,24 @@ export default function CachePage() {
                           <Clock className="w-3 h-3" />
                           Cached {new Date(entry.created_at).toLocaleString()}
                         </span>
-                        <button
-                          onClick={() => handleCopy(entry.full_hash || entry.hash, entry.response)}
-                          className="hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors group/copy"
-                        >
-                          <Copy className="w-3 h-3 group-hover/copy:scale-110 transition-transform" />
-                          Copy Response
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleCopy(entry.full_hash || entry.hash, entry.response)}
+                            className="hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors group/copy"
+                          >
+                            <Copy className="w-3 h-3 group-hover/copy:scale-110 transition-transform" />
+                            Copy Response
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEntry(entry.full_hash || entry.hash)}
+                            disabled={deletingHash === (entry.full_hash || entry.hash)}
+                            className="hover:text-red-500 text-[11px] font-medium flex items-center gap-1 transition-colors group/del disabled:opacity-40"
+                            title="Remove this entry from cache"
+                          >
+                            <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
+                            {deletingHash === (entry.full_hash || entry.hash) ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

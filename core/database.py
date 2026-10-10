@@ -89,6 +89,8 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_log_time ON query_log(created_at);")
             cur.execute("ALTER TABLE semantic_cache ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_cache_expires_at ON semantic_cache(expires_at);")
+            # Feedback score column for RLHF-style quality tracking
+            cur.execute("ALTER TABLE semantic_cache ADD COLUMN IF NOT EXISTS feedback_score INTEGER DEFAULT 0;")
         conn.commit()
     print(f"[Database] Ready at {DB_URL}")
 
@@ -239,6 +241,36 @@ def get_all_entries() -> list:
                    FROM semantic_cache ORDER BY created_at DESC"""
             ).fetchall()
     return [dict(r) for r in rows]
+
+def delete_entry_by_hash(query_hash: str) -> dict:
+    """Delete a single cache entry by its exact SHA-256 hash."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM semantic_cache WHERE query_hash = %s", (query_hash,))
+            deleted = cur.rowcount
+        conn.commit()
+    return {"status": "deleted" if deleted > 0 else "not_found", "query_hash": query_hash[:16] + "..."}
+
+def update_feedback(query_hash: str, is_positive: bool) -> dict:
+    """
+    Record user feedback (thumbs up/down) on a cached entry.
+    Positive: increments feedback_score. Negative: decrements feedback_score.
+    Entries with very negative scores can be candidates for eviction.
+    """
+    delta = 1 if is_positive else -1
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE semantic_cache SET feedback_score = COALESCE(feedback_score, 0) + %s WHERE query_hash = %s",
+                (delta, query_hash)
+            )
+            updated = cur.rowcount
+        conn.commit()
+    return {
+        "status": "ok" if updated > 0 else "not_found",
+        "query_hash": query_hash[:16] + "...",
+        "feedback": "positive" if is_positive else "negative"
+    }
 
 def clear_all():
     with _get_conn() as conn:
