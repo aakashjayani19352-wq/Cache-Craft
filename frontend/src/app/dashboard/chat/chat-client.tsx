@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Send, 
@@ -23,7 +22,9 @@ import {
   AlertTriangle,
   RotateCcw,
   SlidersHorizontal,
-  ChevronDown
+  ChevronRight,
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -79,13 +80,236 @@ const SUGGESTIONS = [
   'How does dynamic cosine similarity thresholding work?'
 ];
 
+// Claude-grade Model Selector Popover Component
+function ClaudeModelMenu({
+  selectedModel,
+  onSelectModel,
+  availableModels,
+  align = 'right'
+}: {
+  selectedModel: string;
+  onSelectModel: (id: string) => void;
+  availableModels: ModelOption[];
+  align?: 'left' | 'right';
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [effort, setEffort] = useState<'Fast' | 'Medium' | 'Deep'>('Medium');
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setShowMore(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  // Model details mapping
+  const modelMeta: Record<string, { title: string; subtitle: string; tag: string }> = {
+    'gemini-3.8-flash': {
+      title: 'Gemini 3.8 Flash',
+      subtitle: 'Most efficient for simpler tasks & real-time cache',
+      tag: 'Cloud'
+    },
+    'auto': {
+      title: 'Auto-Router',
+      subtitle: 'Prompt-aware dynamic routing (Qwen 7B / Llama 3B)',
+      tag: 'Smart'
+    },
+    'qwen2.5:7b': {
+      title: 'Qwen 2.5 7B',
+      subtitle: 'Flagship reasoning, math & code on local GPU',
+      tag: 'Local'
+    },
+    'llama3.2': {
+      title: 'Llama 3.2 3B',
+      subtitle: 'Ultra-fast low-latency conversational model',
+      tag: 'Local'
+    }
+  };
+
+  const currentMeta = modelMeta[selectedModel] || {
+    title: selectedModel.replace('Google ', '').replace(' (Cloud)', ''),
+    subtitle: 'Selected inference model',
+    tag: 'Active'
+  };
+
+  const primaryModelId = 'gemini-3.8-flash';
+  const primaryMeta = modelMeta[primaryModelId];
+
+  return (
+    <div className="relative inline-block" ref={menuRef}>
+      {/* Claude Style Trigger Pill */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#272622] hover:bg-[#302e29] border border-[#3d3b34] text-foreground text-xs font-medium transition-all shadow-xs active:scale-98 select-none"
+      >
+        <span className="text-foreground/95 font-medium">{currentMeta.title}</span>
+        <span className="text-muted-foreground/70 font-normal">{effort}</span>
+      </button>
+
+      {/* Claude Style Popover Dropdown */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className={`absolute bottom-full mb-2 ${
+              align === 'right' ? 'right-0' : 'left-0'
+            } w-[285px] sm:w-[310px] rounded-2xl bg-[#1e1d1a] border border-[#383630] shadow-2xl p-1.5 space-y-1 z-50 text-foreground select-none backdrop-blur-2xl`}
+          >
+            {/* Primary Model Item */}
+            <div
+              onClick={() => {
+                onSelectModel(primaryModelId);
+                setIsOpen(false);
+                setShowMore(false);
+              }}
+              className="p-2.5 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between group"
+            >
+              <div className="space-y-0.5 pr-2">
+                <div className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <span>{primaryMeta.title}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
+                    {primaryMeta.tag}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground/80 leading-relaxed font-normal">
+                  {primaryMeta.subtitle}
+                </p>
+              </div>
+
+              {selectedModel === primaryModelId && (
+                <div className="text-blue-500 mt-1 shrink-0">
+                  <Check className="w-4 h-4" />
+                </div>
+              )}
+            </div>
+
+            {/* Effort Row */}
+            <div 
+              onClick={() => {
+                const next = effort === 'Fast' ? 'Medium' : effort === 'Medium' ? 'Deep' : 'Fast';
+                setEffort(next);
+                toast.info(`Effort set to ${next}`);
+              }}
+              className="px-2.5 py-2 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-center justify-between text-xs text-foreground/90 font-medium"
+            >
+              <span>Effort</span>
+              <div className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                <span>{effort}</span>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+              </div>
+            </div>
+
+            {/* More Models Accordion */}
+            <div className="space-y-1">
+              <div
+                onClick={() => setShowMore(!showMore)}
+                className="px-2.5 py-2 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-center justify-between text-xs text-foreground/90 font-medium"
+              >
+                <span>More models</span>
+                <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${showMore ? 'rotate-90' : ''}`} />
+              </div>
+
+              {showMore && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-0.5 pt-0.5 pl-1"
+                >
+                  {/* Auto Router */}
+                  <div
+                    onClick={() => {
+                      onSelectModel('auto');
+                      setIsOpen(false);
+                    }}
+                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
+                  >
+                    <div>
+                      <div className="text-xs font-medium text-foreground flex items-center gap-1">
+                        <span>✨ Auto-Router (Prompt-Aware)</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/70">
+                        Dynamic prompt-aware complexity routing
+                      </p>
+                    </div>
+                    {selectedModel === 'auto' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
+                  </div>
+
+                  {/* Qwen 7B */}
+                  <div
+                    onClick={() => {
+                      onSelectModel('qwen2.5:7b');
+                      setIsOpen(false);
+                    }}
+                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
+                  >
+                    <div>
+                      <div className="text-xs font-medium text-foreground">
+                        💻 Qwen 2.5 7B (Local)
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/70">
+                        State-of-the-art coding &amp; math on RTX 4060
+                      </p>
+                    </div>
+                    {selectedModel === 'qwen2.5:7b' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
+                  </div>
+
+                  {/* Llama 3.2 3B */}
+                  <div
+                    onClick={() => {
+                      onSelectModel('llama3.2');
+                      setIsOpen(false);
+                    }}
+                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
+                  >
+                    <div>
+                      <div className="text-xs font-medium text-foreground">
+                        ⚡ Llama 3.2 3B (Local)
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/70">
+                        Ultra-fast local chat &amp; greetings
+                      </p>
+                    </div>
+                    {selectedModel === 'llama3.2' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Subtle Divider */}
+            <div className="border-t border-[#312f29] my-1" />
+
+            {/* Bottom Claude-style footer info */}
+            <div className="px-2.5 py-1.5 text-[11px] text-muted-foreground/60 leading-relaxed">
+              <span>Cache-Craft multi-tier caching (Redis L1 &amp; pgvector L2) operates automatically across all selected models. </span>
+              <span className="underline hover:text-muted-foreground cursor-pointer">Learn more</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function ChatClient() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [offlineMode, setOfflineMode] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -104,7 +328,7 @@ export default function ChatClient() {
         if (s.active_model && validIds.includes(s.active_model)) {
           setSelectedModel(s.active_model);
         } else {
-          setSelectedModel('auto');
+          setSelectedModel('gemini-3.8-flash');
         }
       }
     }).catch(() => {});
@@ -120,18 +344,11 @@ export default function ChatClient() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleToggleOfflineMode = () => {
-    const next = !offlineMode;
-    setOfflineMode(next);
-    api.setOfflineMode(next).catch(() => {});
-    toast.info(next ? 'Switched to Offline Mode (100% Local LLM)' : 'Switched to Cloud Mode (Gemini Active)');
-  };
-
   const handleModelChange = (modelId: string) => {
     setSelectedModel(modelId);
     api.setModel(modelId).catch(() => {});
     const modelObj = availableModels.find((m) => m.id === modelId);
-    toast.success(`Model switched: ${modelObj?.name || modelId}`);
+    toast.success(`Active model: ${modelObj?.name || modelId}`);
   };
 
   const sendQuery = async (queryText: string) => {
@@ -241,11 +458,6 @@ export default function ChatClient() {
     }
   };
 
-  const activeModelObj = availableModels.find((m) => m.id === selectedModel);
-  const activeModelDisplay = selectedModel === 'auto' 
-    ? 'Auto-Router' 
-    : (activeModelObj?.name?.replace('Google ', '')?.replace(' (Cloud)', '') || selectedModel);
-
   const renderBadge = (msg: Message) => {
     const meta = msg.metadata;
     if (!meta) return null;
@@ -284,21 +496,21 @@ export default function ChatClient() {
         className="space-y-2 mt-2 select-none"
       >
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${pillStyle}`}>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${pillStyle}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
             <Icon className="w-3 h-3" />
             {label}
-          </Badge>
+          </span>
 
           <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
             ⚡ {meta.latency !== undefined ? `${meta.latency.toFixed(1)}ms` : '—'}
           </span>
 
           {meta.routed_model && meta.hit_type === 'CACHE_MISS' && (
-            <Badge variant="outline" className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <Sparkles className="w-2.5 h-2.5 mr-0.5" />
               <span>Routed: {meta.routed_model}</span>
-            </Badge>
+            </span>
           )}
 
           {meta.query_hash && (
@@ -341,36 +553,25 @@ export default function ChatClient() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] w-full max-w-3xl mx-auto px-4 relative">
-      {/* Top Header Toolbar */}
+      {/* Top Header Toolbar (when in active chat) */}
       {!isChatEmpty && (
         <div className="flex items-center justify-between py-3 border-b border-border/40 shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={handleResetChat}
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground rounded-lg gap-1.5"
+            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground rounded-lg flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             New chat
-          </Button>
+          </button>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <select
-                value={selectedModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-                className="appearance-none bg-secondary/60 hover:bg-secondary text-foreground text-xs font-medium rounded-lg pl-2.5 pr-6 py-1.5 cursor-pointer outline-none transition-all"
-              >
-                <option value="auto">✨ Auto-Router</option>
-                {availableModels.filter(m => m.id !== 'auto').map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3 h-3 text-muted-foreground pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 opacity-70" />
-            </div>
-          </div>
+          {/* Claude Model Selector Dropdown */}
+          <ClaudeModelMenu
+            selectedModel={selectedModel}
+            onSelectModel={handleModelChange}
+            availableModels={availableModels}
+            align="right"
+          />
         </div>
       )}
 
@@ -434,22 +635,13 @@ export default function ChatClient() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Model Selector Pill */}
-                  <div className="relative">
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => handleModelChange(e.target.value)}
-                      className="appearance-none bg-secondary/50 hover:bg-secondary text-foreground text-xs font-medium rounded-lg pl-2.5 pr-6 py-1 cursor-pointer outline-none transition-all"
-                    >
-                      <option value="auto">Auto-Router</option>
-                      {availableModels.filter(m => m.id !== 'auto').map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name.replace('Google ', '').replace(' (Cloud)', '')}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3 h-3 text-muted-foreground pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 opacity-70" />
-                  </div>
+                  {/* Claude Model Selector Popover */}
+                  <ClaudeModelMenu
+                    selectedModel={selectedModel}
+                    onSelectModel={handleModelChange}
+                    availableModels={availableModels}
+                    align="right"
+                  />
 
                   {/* Send Button */}
                   <button
@@ -559,11 +751,19 @@ export default function ChatClient() {
             <div className="flex items-center justify-between pt-1 border-t border-border/30">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground">
-                  Model: <span className="text-foreground font-medium">{activeModelDisplay}</span>
+                  ⚡ Multi-Tier Cache Active
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Claude Model Selector Popover */}
+                <ClaudeModelMenu
+                  selectedModel={selectedModel}
+                  onSelectModel={handleModelChange}
+                  availableModels={availableModels}
+                  align="right"
+                />
+
                 <button
                   onClick={() => sendQuery(input)}
                   disabled={!input.trim() || isLoading}
