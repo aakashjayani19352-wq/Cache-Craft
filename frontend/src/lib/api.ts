@@ -3,10 +3,25 @@
  * All calls to http://localhost:8000
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export function getBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLanOrLocal =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      /^192\.168\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+    if (isLanOrLocal) {
+      return `${window.location.protocol}//${hostname}:8000`;
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const base = getBaseUrl();
+  const res = await fetch(`${base}${path}`, {
     cache: 'no-store',
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers }

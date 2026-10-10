@@ -5,6 +5,7 @@ import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';
 import { Breadcrumbs } from '../breadcrumbs';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
+import { getBaseUrl } from '@/lib/api';
 
 interface HealthState {
   redis: 'ok' | 'error' | 'loading';
@@ -52,7 +53,7 @@ export default function Header() {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getBaseUrl();
         const [healthRes, metricsRes] = await Promise.all([
           fetch(`${apiUrl}/api/health`, { cache: 'no-store' }),
           fetch(`${apiUrl}/api/metrics`, { cache: 'no-store' }),

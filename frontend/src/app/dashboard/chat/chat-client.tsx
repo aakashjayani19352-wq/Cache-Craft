@@ -317,7 +317,13 @@ export default function ChatClient() {
   useEffect(() => {
     textareaRef.current?.focus();
     if (typeof window !== 'undefined') {
-      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const hostname = window.location.hostname;
+      const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        /^192\.168\./.test(hostname) ||
+        /^10\./.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
       setIsLocalHost(isLocal);
     }
     api.settings().catch(() => {});
@@ -367,9 +373,14 @@ export default function ChatClient() {
     history.push({ role: 'user', content: trimmed });
 
     // Determine target API endpoint
-    // If the user is on localhost:3000, target http://localhost:8000 directly (0 mixed content, direct GPU access)
-    const isLocal = typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    // If on localhost or local Wi-Fi LAN IP (e.g. phone connecting to laptop), target the laptop directly
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isLocal =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      /^192\.168\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
     // On cloud Vercel in Offline mode:
     // Browser security blocks HTTPS -> HTTP localhost directly.
@@ -378,14 +389,16 @@ export default function ChatClient() {
       const localGuideMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `⚡ **Physical RTX 4060 GPU Inference Active**\n\nYou are currently accessing Cache-Craft from **cache-craft.vercel.app**.\n\nBrowser security policies strictly block cloud HTTPS domains from accessing your laptop's local ports directly.\n\nTo execute queries directly on your physical **NVIDIA GeForce RTX 4060 GPU**:\n👉 **Open [http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)**\n\n*(Your local instance is already running and connected directly to port 8000 and Ollama with zero network latency).*`
+        content: `⚡ **Physical RTX 4060 GPU Inference Active**\n\nYou are currently accessing Cache-Craft from **cache-craft.vercel.app**.\n\nBrowser security policies strictly block cloud HTTPS domains from accessing your laptop's local ports directly.\n\nTo execute queries directly on your physical **NVIDIA GeForce RTX 4060 GPU**:\n👉 **Open [http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)** (or on your phone: **http://192.168.1.10:3000**)\n\n*(Your local instance is already running and connected directly to port 8000 and Ollama with zero network latency).*`
       };
       setMessages((prev) => [...prev, localGuideMsg]);
       setIsLoading(false);
       return;
     }
 
-    const apiUrl = isLocal ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+    const apiUrl = isLocal
+      ? `${window.location.protocol}//${hostname}:8000`
+      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
     const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.8-flash';
 
     try {
