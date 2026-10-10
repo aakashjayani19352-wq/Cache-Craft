@@ -144,6 +144,17 @@ export const api = {
       body: JSON.stringify({ offline_mode, preferred_local_model })
     }),
 
+  preloadModel: (model: string = 'qwen2.5:7b') =>
+    apiFetch<{
+      status: string;
+      model: string;
+      vram_loaded: boolean;
+      load_time_ms?: number;
+      device?: string;
+    }>(`/api/models/preload?model=${encodeURIComponent(model)}`, {
+      method: 'POST'
+    }),
+
   cleanupCache: () =>
     apiFetch<{ status: string; deleted_expired_count: number }>('/api/cache/cleanup', {
       method: 'POST'

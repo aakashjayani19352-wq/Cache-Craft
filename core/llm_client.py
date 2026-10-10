@@ -79,6 +79,46 @@ def ensure_ollama_running() -> bool:
 
     return False
 
+
+def preload_local_gpu_model(model_name: str = "qwen2.5:7b") -> dict:
+    """
+    Guarantees Ollama background daemon is running, then calls Ollama's /api/generate
+    with keep_alive='60m' to preload model weights into GPU VRAM (RTX 4060).
+    """
+    daemon_ok = ensure_ollama_running()
+    if not daemon_ok:
+        return {"status": "error", "message": "Ollama daemon not available on this machine", "vram_loaded": False}
+
+    clean_model = model_name or "qwen2.5:7b"
+    try:
+        t0 = time.perf_counter()
+        # Ping Ollama to load model weights directly into GPU VRAM
+        res = requests.post(
+            "http://127.0.0.1:11434/api/generate",
+            json={"model": clean_model, "keep_alive": "60m"},
+            timeout=20
+        )
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        if res.status_code == 200:
+            print(f"[Ollama] Model '{clean_model}' preloaded into GPU VRAM in {elapsed_ms}ms.")
+            return {
+                "status": "ready",
+                "model": clean_model,
+                "vram_loaded": True,
+                "load_time_ms": elapsed_ms,
+                "device": "NVIDIA GeForce RTX 4060 Laptop GPU"
+            }
+        return {
+            "status": "warning",
+            "model": clean_model,
+            "vram_loaded": False,
+            "message": f"Ollama returned HTTP {res.status_code}"
+        }
+    except Exception as e:
+        print(f"[Ollama Preload] Notice: {e}")
+        return {"status": "error", "model": clean_model, "vram_loaded": False, "message": str(e)}
+
+
 def get_available_models() -> list[dict]:
     """
     Dynamically returns only models that are ACTUALLY installed in Ollama on this PC,

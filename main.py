@@ -10,7 +10,7 @@ import os
 import json
 import asyncio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, field_validator
@@ -30,6 +30,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_private_network_access_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 # Initialize PostgreSQL & pgvector tables on startup (if database is available)
 try:
@@ -238,6 +244,13 @@ def test_classify(prompt: str):
         "category": category,
         "routing_reason": reason
     }
+
+
+@app.post("/api/models/preload", tags=["Models"])
+def preload_model(model: str = "qwen2.5:7b"):
+    """Preloads local LLM model weights directly into GPU VRAM (RTX 4060)."""
+    import core.llm_client as llm
+    return llm.preload_local_gpu_model(model)
 
 
 # ============================================================
