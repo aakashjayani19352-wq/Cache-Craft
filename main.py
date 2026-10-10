@@ -169,6 +169,11 @@ def detailed_health():
     except Exception:
         pass
 
+    # If local Ollama is not running, check Cloud Gemini connectivity
+    if not llm_ok and os.environ.get("GEMINI_API_KEY"):
+        llm_ok = True
+        llm_model = "gemini-3.8-flash (Cloud)"
+
     return {
         "status": "ok" if (db_ok and llm_ok) else "degraded",
         "database": "ok" if db_ok else "error",

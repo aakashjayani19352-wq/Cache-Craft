@@ -41,8 +41,8 @@ def get_installed_ollama_models(force_refresh: bool = False) -> list[str]:
     except Exception:
         pass
 
-    # If Ollama request times out or is unreachable, fallback to cached or default
-    return _installed_models_cache if _installed_models_cache else ["llama3.2:latest"]
+    # If Ollama request times out or is unreachable, fallback to cached or default local models
+    return _installed_models_cache if _installed_models_cache else ["qwen2.5:7b", "llama3.2:latest"]
 
 
 def is_model_installed(target_id: str, installed_models: list[str] = None) -> bool:
