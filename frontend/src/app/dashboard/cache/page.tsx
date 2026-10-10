@@ -158,7 +158,7 @@ export default function CachePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter by query, vector ID, or answer..."
-              className="pl-9 pr-4 py-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.02)] focus-visible:ring-2 focus-visible:ring-blue-500/20 text-xs"
+              className="pl-9 pr-4 py-5 rounded-2xl bg-card/60 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.02)] focus-visible:ring-2 focus-visible:ring-white/20 text-xs"
             />
           </div>
 
@@ -201,7 +201,7 @@ export default function CachePage() {
             >
               <Card className="rounded-3xl border border-dashed border-black/[0.08] dark:border-white/[0.1] bg-card/40 backdrop-blur-md">
                 <CardContent className="py-16 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mx-auto shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-white/[0.06] text-zinc-200 flex items-center justify-center mx-auto shadow-inner">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div>
@@ -234,7 +234,7 @@ export default function CachePage() {
                       {/* Top Header Row */}
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1 flex-1">
-                          <h3 className="text-sm font-semibold tracking-tight text-foreground leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          <h3 className="text-sm font-semibold tracking-tight text-foreground leading-snug group-hover:text-white transition-colors">
                             {entry.query}
                           </h3>
                           <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground/70">
@@ -262,7 +262,7 @@ export default function CachePage() {
                             className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium border flex items-center gap-1.5 shadow-sm ${
                               isRedis
                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                : 'bg-white/[0.06] text-zinc-300 border-white/[0.1]'
                             }`}
                           >
                             {isRedis ? <Zap className="w-3 h-3" /> : <Database className="w-3 h-3" />}

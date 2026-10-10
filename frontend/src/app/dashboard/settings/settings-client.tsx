@@ -134,7 +134,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
 
   const thresholdColor =
     threshold >= 0.9
-      ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+      ? 'text-zinc-200 bg-white/[0.08] border-white/[0.15]'
       : threshold >= 0.75
       ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
       : threshold >= 0.6
@@ -278,7 +278,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
               </div>
               <div className="p-3.5 rounded-2xl bg-muted/40 border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between">
                 <span className="text-[11px] font-medium text-muted-foreground">Mid-Session Switch</span>
-                <span className="text-sm font-bold mt-1 text-indigo-600 dark:text-indigo-400">
+                <span className="text-sm font-bold mt-1 text-zinc-200">
                   Live in Chat & Settings
                 </span>
               </div>
@@ -297,7 +297,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
           <Card className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-card/70 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] h-full flex flex-col justify-between">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                <div className="p-2 rounded-xl bg-white/[0.06] text-zinc-200">
                   <Sliders className="w-4 h-4" />
                 </div>
                 <CardTitle className="text-lg font-bold">Similarity Threshold</CardTitle>
@@ -342,9 +342,9 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-blue-500/[0.04] border border-blue-500/15 text-xs text-muted-foreground space-y-1">
+              <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-xs text-muted-foreground space-y-1">
                 <p className="font-semibold text-foreground/90 flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-blue-500" />
+                  <Info className="w-3.5 h-3.5 text-zinc-400" />
                   {thresholdLabel}
                 </p>
                 <p className="text-[11px] leading-relaxed">
@@ -356,7 +356,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                 <Button
                   onClick={handleSaveThreshold}
                   disabled={savingThreshold}
-                  className="w-full rounded-2xl py-5 bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-md shadow-blue-500/20 text-sm transition-all"
+                  className="w-full rounded-2xl py-5 bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-sm transition-all shadow-sm"
                 >
                   {savingThreshold ? (
                     <>
@@ -462,7 +462,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                  <div className="p-2 rounded-xl bg-white/[0.06] text-zinc-200">
                     <Bot className="w-4 h-4" />
                   </div>
                   <CardTitle className="text-lg font-bold">LLM Inference Engine</CardTitle>
@@ -488,7 +488,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                       disabled={savingModel}
                       className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between ${
                         isSelected
-                          ? 'bg-indigo-500/10 border-indigo-500/40 text-foreground shadow-sm'
+                          ? 'bg-white/[0.08] border-white/[0.2] text-foreground shadow-sm'
                           : 'bg-muted/20 border-border/40 hover:bg-muted/50 text-muted-foreground'
                       }`}
                     >
@@ -498,7 +498,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                           <Badge
                             variant="outline"
                             className={`text-[9px] px-1.5 py-0 rounded-md font-mono ${
-                              isLocal ? 'border-emerald-500/40 text-emerald-500' : 'border-blue-500/40 text-blue-500'
+                              isLocal ? 'border-emerald-500/40 text-emerald-500' : 'border-white/[0.15] text-zinc-300'
                             }`}
                           >
                             {isLocal ? '100% Offline' : 'Cloud LLM'}
@@ -508,7 +508,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                       </div>
 
                       {isSelected && (
-                        <div className="p-1 rounded-full bg-indigo-500 text-white">
+                        <div className="p-1 rounded-full bg-zinc-200 text-zinc-950">
                           <Check className="w-3 h-3" />
                         </div>
                       )}
@@ -517,9 +517,9 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                 })}
               </div>
 
-              <div className="p-3 rounded-2xl bg-indigo-500/[0.04] border border-indigo-500/15 text-[11px] text-muted-foreground space-y-1">
+              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-[11px] text-muted-foreground space-y-1">
                 <span className="font-semibold text-foreground/90 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                  <Globe className="w-3.5 h-3.5 text-zinc-400" />
                   Automatic Cloud-to-Local Resilience
                 </span>
                 <p className="leading-relaxed">
@@ -539,7 +539,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
           <Card className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-card/70 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] h-full">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
+                <div className="p-2 rounded-xl bg-white/[0.06] text-zinc-200">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <CardTitle className="text-lg font-bold">Engine Specifications</CardTitle>

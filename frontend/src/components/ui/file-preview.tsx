@@ -41,7 +41,7 @@ const getFileIcon = (fileType: string, fileName: string) => {
     fileType.includes('wordprocessing') ||
     fileType.includes('msword')
   )
-    return <Icons.fileTypeDoc {...iconProps} className='text-blue-500 dark:text-blue-400' />;
+    return <Icons.fileTypeDoc {...iconProps} className='text-zinc-400' />;
 
   if (
     ['xls', 'xlsx', 'csv', 'ods'].includes(extension) ||

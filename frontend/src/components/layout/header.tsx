@@ -18,18 +18,18 @@ interface HealthState {
 
 function StatusPill({ label, status }: { label: string; status: 'ok' | 'error' | 'loading' }) {
   const colors = {
-    ok: 'text-emerald-600 dark:text-emerald-400',
-    error: 'text-red-500 dark:text-red-400',
-    loading: 'text-muted-foreground',
+    ok: 'text-zinc-300',
+    error: 'text-rose-400',
+    loading: 'text-zinc-500',
   };
   const dotColors = {
-    ok: 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]',
-    error: 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.7)]',
-    loading: 'bg-zinc-400 animate-pulse',
+    ok: 'bg-emerald-400/80',
+    error: 'bg-rose-400/80',
+    loading: 'bg-zinc-500 animate-pulse',
   };
   return (
     <span
-      className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted/50 border border-border/40 ${colors[status]}`}
+      className={`flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] ${colors[status]}`}
       title={`${label}: ${status}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${dotColors[status]}`} />
@@ -94,19 +94,19 @@ export default function Header() {
         <div className='hidden sm:flex items-center gap-1.5 mr-2'>
           {health.circuit_breaker_active && (
             <span
-              className='flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 animate-pulse'
+              className='flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300'
               title='Circuit Breaker: Auto-switched to Local LLM due to weak network'
             >
-              <span className='w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.7)]' />
+              <span className='w-1.5 h-1.5 rounded-full bg-amber-400/80' />
               Auto-Offline
             </span>
           )}
           {health.offline_mode && (
             <span
-              className='flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400'
+              className='flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.12] text-zinc-200 font-mono'
               title='Offline Mode: 100% Local Inference'
             >
-              <span className='w-1.5 h-1.5 rounded-full bg-indigo-500' />
+              <span className='w-1.5 h-1.5 rounded-full bg-zinc-300' />
               Offline
             </span>
           )}

@@ -80,10 +80,12 @@ const SUGGESTIONS = [
 // Subtle, Minimalist Offline GPU Transition Modal
 function OfflineTransitionModal({
   isOpen,
+  isLocalHost,
   onClose,
   onConfirm
 }: {
   isOpen: boolean;
+  isLocalHost: boolean;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 }) {
@@ -186,9 +188,32 @@ function OfflineTransitionModal({
                   </div>
                 </div>
 
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Confirming will launch the background Ollama daemon and pre-allocate model weights into your RTX 4060 GPU VRAM.
-                </p>
+                {!isLocalHost ? (
+                  <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-xs text-zinc-300 space-y-2">
+                    <div className="font-medium text-zinc-200 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Cpu className="w-3.5 h-3.5 text-zinc-400" />
+                        Laptop GPU Execution
+                      </span>
+                      <span className="text-[10px] text-zinc-500 font-mono">Cloud Vercel</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      Browsers block cloud HTTPS sites from directly accessing laptop ports. Open your local instance to run queries on your physical RTX 4060 GPU with zero latency:
+                    </p>
+                    <a
+                      href="http://localhost:3000/dashboard/chat"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-zinc-950 bg-zinc-100 hover:bg-white py-2 rounded-xl transition-all shadow-sm"
+                    >
+                      <span>Open http://localhost:3000/dashboard/chat →</span>
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Confirming will ensure the local Ollama daemon is active and pre-allocate model weights into your RTX 4060 GPU VRAM.
+                  </p>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -343,26 +368,24 @@ export default function ChatClient() {
 
     // Determine target API endpoint
     // If the user is on localhost:3000, target http://localhost:8000 directly (0 mixed content, direct GPU access)
-    // If the user is on cloud vercel.app and in offline mode:
     const isLocal = typeof window !== 'undefined' && 
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    let apiUrl = isLocal ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
-
     // On cloud Vercel in Offline mode:
     // Browser security blocks HTTPS -> HTTP localhost directly.
-    // If user is on Vercel and toggled offline, we check if they are running locally:
+    // Cloud servers don't have user's local RTX 4060 GPU.
     if (!isLocal && isOffline) {
-      try {
-        const testLocal = await fetch('http://localhost:8000/api/health', { method: 'GET', mode: 'cors' });
-        if (testLocal.ok) {
-          apiUrl = 'http://localhost:8000';
-        }
-      } catch {
-        // Mixed Content blocked or local backend unreachable
-      }
+      const localGuideMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `⚡ **Physical RTX 4060 GPU Inference Active**\n\nYou are currently accessing Cache-Craft from **cache-craft.vercel.app**.\n\nBrowser security policies strictly block cloud HTTPS domains from accessing your laptop's local ports directly.\n\nTo execute queries directly on your physical **NVIDIA GeForce RTX 4060 GPU**:\n👉 **Open [http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)**\n\n*(Your local instance is already running and connected directly to port 8000 and Ollama with zero network latency).*`
+      };
+      setMessages((prev) => [...prev, localGuideMsg]);
+      setIsLoading(false);
+      return;
     }
 
+    const apiUrl = isLocal ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
     const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.8-flash';
 
     try {
@@ -388,10 +411,16 @@ export default function ChatClient() {
       }
 
       const data = await res.json();
+      let responseContent = data.response || 'No response returned.';
+
+      if (responseContent.includes('Could not connect to Ollama') || responseContent.includes('port 11434 unreachable')) {
+        responseContent = `⚡ **Local GPU Hardware Notice**:\n\nCould not reach Ollama on port 11434 from this host.\n\n• **Cloud Vercel**: Browsers block cloud websites from reaching local ports. Open **[http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)** to run queries directly on your physical RTX 4060 GPU.\n• **Localhost**: Ensure Ollama is running with \`ollama serve\`.`;
+      }
+
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'No response returned.',
+        content: responseContent,
         metadata: {
           latency: data.latency_ms,
           hit_type: data.status === 'CACHE_HIT' 
@@ -472,13 +501,13 @@ export default function ChatClient() {
     const isL2 = meta.hit_type === 'CACHE_HIT_L2';
 
     const pillStyle = (isL0 || isL1)
-      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+      ? 'bg-white/[0.05] text-zinc-200 border-white/[0.1]' 
       : isL2
-      ? 'bg-zinc-800 text-zinc-300 border-white/10'
-      : 'bg-white/[0.04] text-zinc-400 border-white/[0.08]';
+      ? 'bg-white/[0.04] text-zinc-300 border-white/[0.08]'
+      : 'bg-white/[0.03] text-zinc-400 border-white/[0.06]';
 
     const dotColor = (isL0 || isL1)
-      ? 'bg-emerald-400'
+      ? 'bg-emerald-400/80'
       : isL2
       ? 'bg-zinc-300'
       : 'bg-zinc-500';
@@ -512,7 +541,8 @@ export default function ChatClient() {
           </span>
 
           {meta.offline_mode && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.05] text-zinc-300 font-mono">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.05] text-zinc-200 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
               <Cpu className="w-2.5 h-2.5 text-zinc-400" />
               <span>RTX 4060 Local</span>
             </span>
@@ -532,13 +562,13 @@ export default function ChatClient() {
                 className="p-1 rounded-md text-zinc-500 hover:text-zinc-200 transition-colors"
                 title="Copy response"
               >
-                {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-zinc-200" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
               <button
                 onClick={() => handleFeedback(msg.id, meta.query_hash!, true)}
                 disabled={meta.feedback !== null && meta.feedback !== undefined}
                 className={`p-1 rounded-md transition-colors ${
-                  meta.feedback === 'positive' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-200'
+                  meta.feedback === 'positive' ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-200'
                 }`}
                 title="Good answer"
               >
@@ -548,7 +578,7 @@ export default function ChatClient() {
                 onClick={() => handleFeedback(msg.id, meta.query_hash!, false)}
                 disabled={meta.feedback !== null && meta.feedback !== undefined}
                 className={`p-1 rounded-md transition-colors ${
-                  meta.feedback === 'negative' ? 'text-rose-400' : 'text-zinc-500 hover:text-rose-400'
+                  meta.feedback === 'negative' ? 'text-zinc-400' : 'text-zinc-500 hover:text-zinc-200'
                 }`}
                 title="Bad answer"
               >
@@ -568,6 +598,7 @@ export default function ChatClient() {
       {/* Alert & Model Loading Transition Modal */}
       <OfflineTransitionModal
         isOpen={showModal}
+        isLocalHost={isLocalHost}
         onClose={() => setShowModal(false)}
         onConfirm={handleConfirmOffline}
       />
@@ -626,13 +657,13 @@ export default function ChatClient() {
           >
             {isOffline ? (
               <>
-                <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                <span className="w-2 h-2 rounded-full bg-zinc-300" />
                 <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                 <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
               </>
             ) : (
               <>
-                <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400/80" />
                 <Globe className="w-3.5 h-3.5 text-zinc-300" />
                 <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
               </>
@@ -712,13 +743,13 @@ export default function ChatClient() {
                   >
                     {isOffline ? (
                       <>
-                        <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                        <span className="w-2 h-2 rounded-full bg-zinc-300" />
                         <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                         <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
                       </>
                     ) : (
                       <>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-400/80" />
                         <Globe className="w-3.5 h-3.5 text-zinc-300" />
                         <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
                       </>
@@ -854,13 +885,13 @@ export default function ChatClient() {
                 >
                   {isOffline ? (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                      <span className="w-2 h-2 rounded-full bg-zinc-300" />
                       <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                       <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
                     </>
                   ) : (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-400/80" />
                       <Globe className="w-3.5 h-3.5 text-zinc-300" />
                       <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
                     </>

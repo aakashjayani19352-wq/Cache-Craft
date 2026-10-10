@@ -57,7 +57,7 @@ export default function OverviewPage() {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-2 border-zinc-400 border-t-transparent animate-spin" />
           <p className="text-xs text-muted-foreground font-medium tracking-wide">Connecting to Cache-Craft cluster...</p>
         </div>
       </div>
@@ -70,9 +70,9 @@ export default function OverviewPage() {
       value: (metrics?.total_queries || 0).toLocaleString(),
       subtitle: `${metrics?.cache_hits || 0} hits · ${metrics?.cache_misses || 0} misses`,
       icon: Activity,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10 border-blue-500/20',
-      gradient: 'from-blue-500/10 to-transparent'
+      color: 'text-zinc-200',
+      bg: 'bg-white/[0.06] border-white/[0.1]',
+      gradient: 'from-white/[0.06] to-transparent'
     },
     {
       title: 'Global Hit Rate',
@@ -88,9 +88,9 @@ export default function OverviewPage() {
       value: `${metrics?.cost_savings_percent || 0}%`,
       subtitle: 'LLM inference tokens eliminated',
       icon: TrendingUp,
-      color: 'text-purple-500',
-      bg: 'bg-purple-500/10 border-purple-500/20',
-      gradient: 'from-purple-500/10 to-transparent'
+      color: 'text-zinc-200',
+      bg: 'bg-white/[0.06] border-white/[0.1]',
+      gradient: 'from-white/[0.06] to-transparent'
     },
     {
       title: 'Avg Cache Latency',
@@ -210,10 +210,10 @@ export default function OverviewPage() {
               </div>
 
               {/* L2 Tier */}
-              <div className="relative p-5 rounded-2xl bg-gradient-to-b from-blue-500/[0.04] to-transparent border border-blue-500/20 space-y-3">
+              <div className="relative p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                    <div className="p-2 rounded-xl bg-white/[0.06] text-zinc-200">
                       <Database className="w-5 h-5" />
                     </div>
                     <div>
@@ -221,14 +221,14 @@ export default function OverviewPage() {
                       <p className="text-[11px] text-muted-foreground">PostgreSQL Semantic Store</p>
                     </div>
                   </div>
-                  <Badge variant="secondary" className="rounded-full text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-mono">
+                  <Badge variant="secondary" className="rounded-full text-[10px] bg-white/[0.06] text-zinc-300 border border-white/[0.1] font-mono">
                     ~15ms - 30ms
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Deep sentence-transformer vector embedding compared against index using cosine similarity. Catches rephrased queries.
                 </p>
-                <div className="pt-2 flex items-center gap-1.5 text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                <div className="pt-2 flex items-center gap-1.5 text-[11px] text-zinc-300 font-medium">
                   <Layers className="w-3.5 h-3.5" />
                   <span>Semantic Vector Match</span>
                 </div>
