@@ -1,30 +1,21 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { 
-  Send, 
-  Bot, 
-  User, 
   Zap, 
   Database, 
   Server, 
   Copy, 
   Check, 
-  Plus,
-  Sparkles,
-  ArrowRight,
-  ArrowUp,
-  ThumbsUp,
-  ThumbsDown,
-  Wifi,
-  WifiOff,
-  AlertTriangle,
-  RotateCcw,
-  SlidersHorizontal,
-  ChevronRight,
+  Sparkles, 
+  ArrowUp, 
+  ThumbsUp, 
+  ThumbsDown, 
+  RotateCcw, 
   ChevronDown,
-  ExternalLink
+  Layers,
+  Cpu,
+  Globe
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -32,23 +23,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api, type ModelOption } from '@/lib/api';
 
-// Claude signature terracotta asterisk/starburst icon
-function ClaudeStar({ className = "w-9 h-9" }: { className?: string }) {
+// Cache-Craft's signature isometric neural cache emblem (100% bespoke, zero Claude iconography)
+function CacheCraftEmblem({ className = "w-12 h-12" }: { className?: string }) {
   return (
-    <svg 
-      className={className} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2.2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <line x1="12" y1="2" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-      <line x1="19.07" y1="4.93" x2="4.93" y2="19.07" />
-    </svg>
+    <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
+      {/* High-refresh ambient radiant aura */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-500/25 via-orange-500/20 to-amber-600/10 blur-xl animate-pulse" />
+      <div className="relative w-full h-full rounded-2xl bg-gradient-to-b from-[#24211a] via-[#1a1813] to-[#12110e] border border-amber-500/35 flex items-center justify-center shadow-[0_8px_30px_rgba(245,158,11,0.18)] ring-1 ring-white/10 will-change-transform">
+        <svg 
+          viewBox="0 0 24 24" 
+          className="w-6 h-6 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.7)]" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2.2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        >
+          {/* Multi-tier layered cache prism */}
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -80,11 +77,10 @@ const SUGGESTIONS = [
   'How does dynamic cosine similarity thresholding work?'
 ];
 
-// Claude-grade Model Selector Popover Component
-function ClaudeModelMenu({
+// Ultra-smooth 165Hz-grade Functional Model Selector Popover
+function ModelSelectorMenu({
   selectedModel,
   onSelectModel,
-  availableModels,
   align = 'right'
 }: {
   selectedModel: string;
@@ -93,15 +89,12 @@ function ClaudeModelMenu({
   align?: 'left' | 'right';
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [showMore, setShowMore] = useState(false);
-  const [effort, setEffort] = useState<'Fast' | 'Medium' | 'Deep'>('Medium');
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setShowMore(false);
       }
     }
     if (isOpen) {
@@ -110,191 +103,137 @@ function ClaudeModelMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Model details mapping
-  const modelMeta: Record<string, { title: string; subtitle: string; tag: string }> = {
-    'gemini-3.8-flash': {
+  // Catalog of functional models with clear architecture badges
+  const models = [
+    {
+      id: 'gemini-3.8-flash',
       title: 'Gemini 3.8 Flash',
-      subtitle: 'Most efficient for simpler tasks & real-time cache',
-      tag: 'Cloud'
+      subtitle: 'Primary high-speed cloud LLM with instant vector caching',
+      tag: 'Cloud Primary',
+      tagColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+      icon: Globe
     },
-    'auto': {
+    {
+      id: 'auto',
       title: 'Auto-Router',
-      subtitle: 'Prompt-aware dynamic routing (Qwen 7B / Llama 3B)',
-      tag: 'Smart'
+      subtitle: 'Dynamic prompt intent & complexity classifier (Qwen / Llama)',
+      tag: 'Smart Hybrid',
+      tagColor: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
+      icon: Sparkles
     },
-    'qwen2.5:7b': {
+    {
+      id: 'qwen2.5:7b',
       title: 'Qwen 2.5 7B',
-      subtitle: 'Flagship reasoning, math & code on local GPU',
-      tag: 'Local'
+      subtitle: 'Deep reasoning, math & code on local RTX 4060 GPU',
+      tag: 'Local 7B',
+      tagColor: 'text-blue-400 bg-blue-500/10 border-blue-500/25',
+      icon: Cpu
     },
-    'llama3.2': {
+    {
+      id: 'llama3.2',
       title: 'Llama 3.2 3B',
-      subtitle: 'Ultra-fast low-latency conversational model',
-      tag: 'Local'
+      subtitle: 'Ultra-fast low-latency local conversational engine',
+      tag: 'Local 3B',
+      tagColor: 'text-purple-400 bg-purple-500/10 border-purple-500/25',
+      icon: Zap
     }
-  };
+  ];
 
-  const currentMeta = modelMeta[selectedModel] || {
+  const currentModel = models.find((m) => m.id === selectedModel) || {
+    id: selectedModel,
     title: selectedModel.replace('Google ', '').replace(' (Cloud)', ''),
     subtitle: 'Selected inference model',
-    tag: 'Active'
+    tag: 'Active',
+    tagColor: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
+    icon: Layers
   };
-
-  const primaryModelId = 'gemini-3.8-flash';
-  const primaryMeta = modelMeta[primaryModelId];
 
   return (
     <div className="relative inline-block" ref={menuRef}>
-      {/* Claude Style Trigger Pill */}
-      <button
+      {/* 165Hz Hardware-Accelerated Trigger Button */}
+      <motion.button
         type="button"
+        whileHover={{ scale: 1.02, y: -1 }}
+        whileTap={{ scale: 0.97 }}
+        transition={{ type: 'spring', stiffness: 450, damping: 25 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#272622] hover:bg-[#302e29] border border-[#3d3b34] text-foreground text-xs font-medium transition-all shadow-xs active:scale-98 select-none"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#22201b]/90 hover:bg-[#2c2a23] border border-white/[0.08] hover:border-amber-500/35 text-foreground text-xs font-medium transition-all shadow-xs select-none backdrop-blur-md will-change-transform"
       >
-        <span className="text-foreground/95 font-medium">{currentMeta.title}</span>
-        <span className="text-muted-foreground/70 font-normal">{effort}</span>
-      </button>
+        <span className="text-foreground/95 font-medium">{currentModel.title}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </motion.button>
 
-      {/* Claude Style Popover Dropdown */}
+      {/* Floating Popover Card */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             className={`absolute bottom-full mb-2 ${
               align === 'right' ? 'right-0' : 'left-0'
-            } w-[285px] sm:w-[310px] rounded-2xl bg-[#1e1d1a] border border-[#383630] shadow-2xl p-1.5 space-y-1 z-50 text-foreground select-none backdrop-blur-2xl`}
+            } w-[300px] sm:w-[330px] rounded-2xl bg-[#1b1a16]/95 border border-white/[0.1] shadow-2xl p-2 space-y-1.5 z-50 text-foreground select-none backdrop-blur-2xl will-change-transform ring-1 ring-white/5`}
           >
-            {/* Primary Model Item */}
-            <div
-              onClick={() => {
-                onSelectModel(primaryModelId);
-                setIsOpen(false);
-                setShowMore(false);
-              }}
-              className="p-2.5 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between group"
-            >
-              <div className="space-y-0.5 pr-2">
-                <div className="text-sm font-medium text-foreground flex items-center gap-1.5">
-                  <span>{primaryMeta.title}</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
-                    {primaryMeta.tag}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground/80 leading-relaxed font-normal">
-                  {primaryMeta.subtitle}
-                </p>
-              </div>
-
-              {selectedModel === primaryModelId && (
-                <div className="text-blue-500 mt-1 shrink-0">
-                  <Check className="w-4 h-4" />
-                </div>
-              )}
+            <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-white/[0.06]">
+              <span className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                Inference Routing Engine
+              </span>
+              <span className="text-[10px] text-amber-400 font-mono">
+                L1 + L2 Active
+              </span>
             </div>
 
-            {/* Effort Row */}
-            <div 
-              onClick={() => {
-                const next = effort === 'Fast' ? 'Medium' : effort === 'Medium' ? 'Deep' : 'Fast';
-                setEffort(next);
-                toast.info(`Effort set to ${next}`);
-              }}
-              className="px-2.5 py-2 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-center justify-between text-xs text-foreground/90 font-medium"
-            >
-              <span>Effort</span>
-              <div className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                <span>{effort}</span>
-                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-              </div>
+            {/* List of 100% Functional Models */}
+            <div className="space-y-1 pt-1">
+              {models.map((model) => {
+                const isSelected = selectedModel === model.id;
+                const IconComponent = model.icon;
+                return (
+                  <motion.div
+                    key={model.id}
+                    whileHover={{ scale: 1.01, x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                    onClick={() => {
+                      onSelectModel(model.id);
+                      setIsOpen(false);
+                    }}
+                    className={`p-2.5 rounded-xl cursor-pointer flex items-start justify-between transition-colors ${
+                      isSelected 
+                        ? 'bg-[#27241e] border border-amber-500/30 shadow-xs' 
+                        : 'hover:bg-[#24221c] border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5 pr-2">
+                      <div className={`mt-0.5 p-1.5 rounded-lg ${isSelected ? 'bg-amber-500/20 text-amber-400' : 'bg-white/5 text-muted-foreground'}`}>
+                        <IconComponent className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <span>{model.title}</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded-full border font-normal ${model.tagColor}`}>
+                            {model.tag}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/75 leading-relaxed font-normal">
+                          {model.subtitle}
+                        </p>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <div className="text-amber-400 mt-1 shrink-0 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]">
+                        <Check className="w-4 h-4" />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
 
-            {/* More Models Accordion */}
-            <div className="space-y-1">
-              <div
-                onClick={() => setShowMore(!showMore)}
-                className="px-2.5 py-2 rounded-xl hover:bg-[#2b2924] transition-colors cursor-pointer flex items-center justify-between text-xs text-foreground/90 font-medium"
-              >
-                <span>More models</span>
-                <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${showMore ? 'rotate-90' : ''}`} />
-              </div>
-
-              {showMore && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-0.5 pt-0.5 pl-1"
-                >
-                  {/* Auto Router */}
-                  <div
-                    onClick={() => {
-                      onSelectModel('auto');
-                      setIsOpen(false);
-                    }}
-                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
-                  >
-                    <div>
-                      <div className="text-xs font-medium text-foreground flex items-center gap-1">
-                        <span>✨ Auto-Router (Prompt-Aware)</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground/70">
-                        Dynamic prompt-aware complexity routing
-                      </p>
-                    </div>
-                    {selectedModel === 'auto' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
-                  </div>
-
-                  {/* Qwen 7B */}
-                  <div
-                    onClick={() => {
-                      onSelectModel('qwen2.5:7b');
-                      setIsOpen(false);
-                    }}
-                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
-                  >
-                    <div>
-                      <div className="text-xs font-medium text-foreground">
-                        💻 Qwen 2.5 7B (Local)
-                      </div>
-                      <p className="text-[11px] text-muted-foreground/70">
-                        State-of-the-art coding &amp; math on RTX 4060
-                      </p>
-                    </div>
-                    {selectedModel === 'qwen2.5:7b' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
-                  </div>
-
-                  {/* Llama 3.2 3B */}
-                  <div
-                    onClick={() => {
-                      onSelectModel('llama3.2');
-                      setIsOpen(false);
-                    }}
-                    className="p-2 rounded-lg hover:bg-[#2b2924] transition-colors cursor-pointer flex items-start justify-between"
-                  >
-                    <div>
-                      <div className="text-xs font-medium text-foreground">
-                        ⚡ Llama 3.2 3B (Local)
-                      </div>
-                      <p className="text-[11px] text-muted-foreground/70">
-                        Ultra-fast local chat &amp; greetings
-                      </p>
-                    </div>
-                    {selectedModel === 'llama3.2' && <Check className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-
-            {/* Subtle Divider */}
-            <div className="border-t border-[#312f29] my-1" />
-
-            {/* Bottom Claude-style footer info */}
-            <div className="px-2.5 py-1.5 text-[11px] text-muted-foreground/60 leading-relaxed">
-              <span>Cache-Craft multi-tier caching (Redis L1 &amp; pgvector L2) operates automatically across all selected models. </span>
-              <span className="underline hover:text-muted-foreground cursor-pointer">Learn more</span>
+            <div className="border-t border-white/[0.06] pt-2 px-2 pb-1 text-[11px] text-muted-foreground/60 leading-relaxed font-normal">
+              <span>All requests automatically query Redis L1 and pgvector L2 before reaching inference.</span>
             </div>
           </motion.div>
         )}
@@ -308,7 +247,6 @@ export default function ChatClient() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [offlineMode, setOfflineMode] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -321,7 +259,6 @@ export default function ChatClient() {
   useEffect(() => {
     textareaRef.current?.focus();
     api.settings().then((s) => {
-      if (s.offline_mode) setOfflineMode(true);
       if (s.available_models) {
         setAvailableModels(s.available_models);
         const validIds = s.available_models.map((m) => m.id);
@@ -348,7 +285,7 @@ export default function ChatClient() {
     setSelectedModel(modelId);
     api.setModel(modelId).catch(() => {});
     const modelObj = availableModels.find((m) => m.id === modelId);
-    toast.success(`Active model: ${modelObj?.name || modelId}`);
+    toast.success(`Active engine: ${modelObj?.name || modelId}`);
   };
 
   const sendQuery = async (queryText: string) => {
@@ -373,7 +310,6 @@ export default function ChatClient() {
         body: JSON.stringify({
           question: trimmed,
           messages: history.slice(-20),
-          offline_mode: offlineMode,
           model: selectedModel,
         }),
       });
@@ -467,15 +403,15 @@ export default function ChatClient() {
     const isL2 = meta.hit_type === 'CACHE_HIT_L2';
 
     const pillStyle = (isL0 || isL1)
-      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
+      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' 
       : isL2
-      ? 'bg-[#d97757]/10 text-[#d97757] border-[#d97757]/30'
-      : 'bg-muted text-muted-foreground border-border/40';
+      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+      : 'bg-white/[0.04] text-muted-foreground border-white/[0.08]';
 
     const dotColor = (isL0 || isL1)
-      ? 'bg-emerald-500'
+      ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
       : isL2
-      ? 'bg-[#d97757]'
+      ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
       : 'bg-muted-foreground/60';
 
     const Icon = (isL0 || isL1) ? Zap : isL2 ? Database : Server;
@@ -507,7 +443,7 @@ export default function ChatClient() {
           </span>
 
           {meta.routed_model && meta.hit_type === 'CACHE_MISS' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-purple-500/30 bg-purple-500/10 text-purple-400">
               <Sparkles className="w-2.5 h-2.5 mr-0.5" />
               <span>Routed: {meta.routed_model}</span>
             </span>
@@ -553,20 +489,21 @@ export default function ChatClient() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] w-full max-w-3xl mx-auto px-4 relative">
-      {/* Top Header Toolbar (when in active chat) */}
+      {/* Top Header Toolbar (active chat) */}
       {!isChatEmpty && (
-        <div className="flex items-center justify-between py-3 border-b border-border/40 shrink-0">
-          <button
+        <div className="flex items-center justify-between py-3 border-b border-white/[0.08] shrink-0">
+          <motion.button
             type="button"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
             onClick={handleResetChat}
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground rounded-lg flex items-center gap-1.5 transition-colors"
+            className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground rounded-lg flex items-center gap-1.5 transition-colors border border-white/[0.06] hover:border-white/[0.12] bg-[#1e1d1a]"
           >
-            <Plus className="w-3.5 h-3.5" />
-            New chat
-          </button>
+            <RotateCcw className="w-3 h-3 text-amber-400" />
+            <span>New Session</span>
+          </motion.button>
 
-          {/* Claude Model Selector Dropdown */}
-          <ClaudeModelMenu
+          <ModelSelectorMenu
             selectedModel={selectedModel}
             onSelectModel={handleModelChange}
             availableModels={availableModels}
@@ -578,29 +515,32 @@ export default function ChatClient() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 py-4 space-y-6">
         {isChatEmpty ? (
-          /* Claude Welcoming Centered Hero */
-          <div className="h-full flex flex-col items-center justify-center -mt-8 space-y-6 select-none">
-            {/* Claude Terracotta Starburst */}
+          /* Cache-Craft Signature Neural Hero (165Hz Optimized) */
+          <div className="h-full flex flex-col items-center justify-center -mt-8 space-y-7 select-none">
+            {/* Cache-Craft Emblem & Title */}
             <motion.div
-              initial={{ scale: 0.85, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-              className="flex items-center gap-3"
+              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+              className="flex items-center gap-4"
             >
-              <div className="text-[#d97757]">
-                <ClaudeStar className="w-10 h-10" />
+              <CacheCraftEmblem />
+              <div className="text-left">
+                <h1 className="text-2xl sm:text-3xl text-foreground font-semibold tracking-tight bg-gradient-to-r from-foreground via-foreground/95 to-foreground/80 bg-clip-text">
+                  Accelerate your intelligence.
+                </h1>
+                <p className="text-xs text-muted-foreground/75 font-normal tracking-wide mt-0.5">
+                  Autonomous Multi-Tier Semantic Cache · Redis L1 · pgvector L2 · Gemini Cloud
+                </p>
               </div>
-              <h1 className="font-serif text-3xl sm:text-4xl text-foreground font-normal tracking-tight">
-                What shall we think through?
-              </h1>
             </motion.div>
 
-            {/* Claude-Style Floating Input Card */}
+            {/* Floating Glassmorphic Prompt Card */}
             <motion.div
-              initial={{ y: 15, opacity: 0 }}
+              initial={{ y: 16, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="w-full max-w-2xl bg-card dark:bg-[#201f1c] border border-border/70 dark:border-[#34322d] rounded-2xl shadow-lg p-3 sm:p-4 space-y-3"
+              transition={{ type: 'spring', stiffness: 380, damping: 26, delay: 0.05 }}
+              className="w-full max-w-2xl bg-[#171612]/95 border border-white/[0.1] hover:border-amber-500/35 focus-within:border-amber-500/50 focus-within:shadow-[0_0_35px_rgba(245,158,11,0.14)] rounded-[22px] shadow-2xl p-3.5 sm:p-4.5 space-y-3 transition-all duration-300 backdrop-blur-2xl will-change-transform ring-1 ring-white/5"
             >
               <textarea
                 ref={textareaRef}
@@ -615,57 +555,55 @@ export default function ChatClient() {
                   }
                 }}
                 rows={3}
-                placeholder="How can I help you today?"
-                className="w-full bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/50 resize-none outline-none leading-relaxed"
+                placeholder="Ask anything or test semantic cache recall..."
+                className="w-full bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/45 resize-none outline-none leading-relaxed font-normal"
               />
 
-              {/* Bottom Card Toolbar */}
-              <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                <div className="flex items-center gap-2">
-                  <button 
-                    type="button"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                    title="Add context"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs text-muted-foreground font-medium px-2 py-0.5 rounded-md bg-secondary/50">
-                    ⚡ Cache-Craft Active
-                  </span>
+              {/* Functional Controls Toolbar (Zero Mock/Dummy Icons) */}
+              <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+                {/* Active Cache Engine Indicator */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-medium select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.9)] animate-pulse" />
+                  <span>Cache-Craft Active</span>
                 </div>
 
+                {/* Right Controls: Model Selector & Functional Send Button */}
                 <div className="flex items-center gap-2">
-                  {/* Claude Model Selector Popover */}
-                  <ClaudeModelMenu
+                  <ModelSelectorMenu
                     selectedModel={selectedModel}
                     onSelectModel={handleModelChange}
                     availableModels={availableModels}
                     align="right"
                   />
 
-                  {/* Send Button */}
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 20 }}
                     onClick={() => sendQuery(input)}
                     disabled={!input.trim() || isLoading}
-                    className="h-8 w-8 rounded-lg bg-[#d97757] hover:bg-[#c86b4c] text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
-                    title="Send query"
+                    className="h-8 w-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-amber-500/25 active:scale-95 will-change-transform"
+                    title="Send query (Enter)"
                   >
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
+                    <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
 
-            {/* Suggestions below */}
-            <div className="w-full max-w-2xl flex flex-wrap gap-2 justify-center pt-2">
+            {/* Sleek Preset Query Pills */}
+            <div className="w-full max-w-2xl flex flex-wrap gap-2 justify-center pt-1">
               {SUGGESTIONS.map((item, idx) => (
-                <button
+                <motion.button
                   key={idx}
+                  whileHover={{ scale: 1.025, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 25 }}
                   onClick={() => sendQuery(item)}
-                  className="text-xs text-muted-foreground hover:text-foreground bg-secondary/40 hover:bg-secondary/70 border border-border/40 rounded-full px-3.5 py-1.5 transition-all text-left"
+                  className="text-xs text-muted-foreground/80 hover:text-foreground bg-[#1d1b16]/80 hover:bg-[#26241d] border border-white/[0.06] hover:border-amber-500/35 rounded-full px-3.5 py-1.5 transition-all text-left shadow-xs backdrop-blur-md will-change-transform"
                 >
                   {item}
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
@@ -680,20 +618,18 @@ export default function ChatClient() {
                     key={msg.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 28 }}
                     className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                   >
                     {isUser ? (
-                      <div className="bg-secondary/80 text-foreground text-sm sm:text-base rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] whitespace-pre-wrap leading-relaxed">
+                      <div className="bg-[#2a2721] text-foreground text-sm sm:text-base rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] whitespace-pre-wrap leading-relaxed border border-white/[0.08] shadow-sm">
                         {msg.content}
                       </div>
                     ) : (
                       <div className="w-full space-y-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className="text-[#d97757]">
-                            <ClaudeStar className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-semibold text-foreground/80">Cache-Craft</span>
+                          <Zap className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="text-xs font-semibold text-foreground/80 tracking-wide">Cache-Craft</span>
                         </div>
 
                         <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed font-normal">
@@ -715,10 +651,8 @@ export default function ChatClient() {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex items-center gap-2 text-muted-foreground text-xs"
                 >
-                  <div className="text-[#d97757] animate-spin">
-                    <ClaudeStar className="w-4 h-4" />
-                  </div>
-                  <span>Thinking &amp; routing through cache...</span>
+                  <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
+                  <span className="font-medium tracking-wide">Routing through multi-tier cache...</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -727,10 +661,10 @@ export default function ChatClient() {
         )}
       </div>
 
-      {/* Docked Claude Floating Input (when chat has messages) */}
+      {/* Docked Floating Input Bar (when chat is active) */}
       {!isChatEmpty && (
         <div className="absolute bottom-4 left-4 right-4 max-w-3xl mx-auto">
-          <div className="bg-card dark:bg-[#201f1c] border border-border/70 dark:border-[#34322d] rounded-2xl shadow-xl p-2.5 sm:p-3 space-y-2 backdrop-blur-xl">
+          <div className="bg-[#171612]/95 border border-white/[0.1] hover:border-amber-500/35 focus-within:border-amber-500/50 rounded-2xl shadow-2xl p-2.5 sm:p-3 space-y-2 backdrop-blur-2xl transition-all ring-1 ring-white/5">
             <textarea
               ref={textareaRef}
               value={input}
@@ -744,34 +678,35 @@ export default function ChatClient() {
                 }
               }}
               rows={2}
-              placeholder="Reply to Cache-Craft..."
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 resize-none outline-none leading-relaxed"
+              placeholder="Ask a follow-up query to test context caching..."
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/45 resize-none outline-none leading-relaxed"
             />
 
-            <div className="flex items-center justify-between pt-1 border-t border-border/30">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground">
-                  ⚡ Multi-Tier Cache Active
-                </span>
+            <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+              <div className="flex items-center gap-1.5 text-xs text-amber-400/90 font-medium select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
+                <span>Multi-Tier Active</span>
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Claude Model Selector Popover */}
-                <ClaudeModelMenu
+                <ModelSelectorMenu
                   selectedModel={selectedModel}
                   onSelectModel={handleModelChange}
                   availableModels={availableModels}
                   align="right"
                 />
 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.92 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 20 }}
                   onClick={() => sendQuery(input)}
                   disabled={!input.trim() || isLoading}
-                  className="h-7 w-7 rounded-lg bg-[#d97757] hover:bg-[#c86b4c] text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-sm"
+                  className="h-7 w-7 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-amber-500/25 active:scale-95 will-change-transform"
                   title="Send message"
                 >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
+                  <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                </motion.button>
               </div>
             </div>
           </div>
