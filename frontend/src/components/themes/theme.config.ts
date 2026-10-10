@@ -2,9 +2,13 @@
  * Default theme that loads when no user preference is set
  * Change this value to set a different default theme
  */
-export const DEFAULT_THEME = 'claude';
+export const DEFAULT_THEME = 'cache-craft';
 
 export const THEMES = [
+  {
+    name: 'Cache-Craft (Quantum)',
+    value: 'cache-craft'
+  },
   {
     name: 'Claude',
     value: 'claude'

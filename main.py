@@ -38,6 +38,13 @@ try:
 except Exception as e:
     print(f"[Startup] PostgreSQL init notice (resilient mode active): {e}")
 
+# Auto-start Ollama in background if installed locally
+try:
+    import core.llm_client as llm
+    llm.ensure_ollama_running()
+except Exception as e:
+    print(f"[Startup] Ollama check: {e}")
+
 # Load persisted threshold and TTL from DB on startup (survives restarts)
 _saved = None
 _saved_ttl = None

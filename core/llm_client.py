@@ -9,7 +9,10 @@ Strategy (updated):
 """
 
 import os
+import sys
 import time
+import shutil
+import subprocess
 import requests
 from dotenv import load_dotenv
 import core.database as db
@@ -17,12 +20,64 @@ import core.database as db
 load_dotenv()
 
 OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
+OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 OLLAMA_TIMEOUT_S = 45          # Allows cold 7B model loading into GPU VRAM
 GEMINI_CONNECT_TIMEOUT_S = 5.0   # Robust connect timeout
 GEMINI_READ_TIMEOUT_S = 30.0    # Allows ample generation read window for cloud LLM requests
 
 # Gemini is the default cloud model
 DEFAULT_MODEL = "gemini-3.8-flash"
+
+
+def ensure_ollama_running() -> bool:
+    """
+    Checks if Ollama daemon is active on port 11434.
+    If not running, attempts to launch `ollama serve` in the background (Windows detached process)
+    and waits up to 6 seconds for it to bind to port 11434.
+    """
+    try:
+        r = requests.get(OLLAMA_TAGS_URL, timeout=1.0)
+        if r.status_code == 200:
+            return True
+    except Exception:
+        pass
+
+    # Find ollama binary
+    ollama_bin = shutil.which("ollama")
+    if not ollama_bin and sys.platform == "win32":
+        default_win_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe")
+        if os.path.exists(default_win_path):
+            ollama_bin = default_win_path
+
+    if not ollama_bin:
+        return False
+
+    print(f"[Ollama Auto-Start] Launching Ollama background daemon via {ollama_bin}...")
+    try:
+        creationflags = 0
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+
+        subprocess.Popen(
+            [ollama_bin, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags
+        )
+
+        for _ in range(12):
+            time.sleep(0.5)
+            try:
+                r = requests.get(OLLAMA_TAGS_URL, timeout=0.8)
+                if r.status_code == 200:
+                    print("[Ollama Auto-Start] Daemon successfully online on port 11434!")
+                    return True
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[Ollama Auto-Start] Failed to launch daemon: {e}")
+
+    return False
 
 def get_available_models() -> list[dict]:
     """
@@ -293,8 +348,11 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-3.8-
 
 
 def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") -> dict:
-    """Send request to local Ollama instance running on localhost:11434."""
+    """Send request to local Ollama instance running on localhost:11434 with automatic background daemon auto-launch."""
     try:
+        # Guarantee local Ollama server is running on port 11434 before sending request
+        ensure_ollama_running()
+
         formatted_messages = []
         if messages and len(messages) > 0:
             for m in messages:
