@@ -14,9 +14,7 @@ import {
   RotateCcw, 
   Cpu, 
   Globe, 
-  ShieldCheck, 
-  AlertCircle, 
-  Activity,
+  ExternalLink,
   CheckCircle2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -25,27 +23,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
-// Cache-Craft's signature Quantum Neural Cache Core (Bespoke Cyber-Cyan & Electric-Violet)
-function CacheCraftEmblem({ className = "w-12 h-12" }: { className?: string }) {
+// Cache-Craft's signature Minimalist Titanium Neural Emblem (Subtle, Mature, Sophisticated)
+function CacheCraftEmblem({ className = "w-11 h-11" }: { className?: string }) {
   return (
     <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-      {/* 165Hz High-refresh atmospheric ambient cyber aura */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-cyan-500/25 via-blue-500/20 to-violet-600/20 blur-xl animate-pulse" />
-      <div className="relative w-full h-full rounded-2xl bg-gradient-to-b from-[#111728] via-[#0c101d] to-[#070a13] border border-cyan-500/35 flex items-center justify-center shadow-[0_8px_32px_rgba(6,182,212,0.2)] ring-1 ring-white/10 will-change-transform">
+      <div className="absolute inset-0 rounded-2xl bg-white/[0.04] blur-lg" />
+      <div className="relative w-full h-full rounded-2xl bg-[#16161a] border border-white/[0.12] flex items-center justify-center shadow-lg ring-1 ring-white/5 will-change-transform">
         <svg 
           viewBox="0 0 24 24" 
-          className="w-6 h-6 text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]" 
+          className="w-5 h-5 text-zinc-100" 
           fill="none" 
           stroke="currentColor" 
-          strokeWidth="2.2" 
+          strokeWidth="2" 
           strokeLinecap="round" 
           strokeLinejoin="round"
         >
-          {/* Cyber Cache Node Prism */}
+          {/* Isometric Multi-Tier Cache Prism */}
           <path d="M12 2L2 7l10 5 10-5-10-5z" />
           <path d="M2 17l10 5 10-5" />
           <path d="M2 12l10 5 10-5" />
-          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.2" fill="currentColor" />
         </svg>
       </div>
     </div>
@@ -80,7 +77,7 @@ const SUGGESTIONS = [
   'How does dynamic cosine similarity thresholding work?'
 ];
 
-// Futuristic Quantum GPU Transition Modal with Holographic Loader
+// Subtle, Minimalist Offline GPU Transition Modal
 function OfflineTransitionModal({
   isOpen,
   onClose,
@@ -103,186 +100,175 @@ function OfflineTransitionModal({
 
   const handleStartLoad = async () => {
     setStep('loading');
-    setProgress(15);
+    setProgress(20);
     setCurrentTask('Verifying background Ollama daemon...');
 
-    // Trigger preload on backend in parallel
     const preloadPromise = onConfirm();
 
     setTimeout(() => {
-      setProgress(40);
+      setProgress(50);
       setCurrentTask('Allocating 4.7 GB into NVIDIA RTX 4060 VRAM...');
-    }, 600);
+    }, 500);
 
     setTimeout(() => {
-      setProgress(75);
+      setProgress(85);
       setCurrentTask('Mounting Qwen 2.5 (7B) weights & warm-up verification...');
-    }, 1300);
+    }, 1100);
 
     try {
       await preloadPromise;
-    } catch {
-      // Continue even on network hiccup
-    }
+    } catch {}
 
     setProgress(100);
-    setCurrentTask('RTX 4060 GPU Online · Zero-Latency Local Core Ready!');
+    setCurrentTask('RTX 4060 GPU Online · Zero-Latency Local Core Ready');
     setStep('ready');
 
     setTimeout(() => {
       onClose();
-    }, 1000);
+    }, 900);
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Deep glass backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => step === 'alert' && onClose()}
-          className="absolute inset-0 bg-black/80 backdrop-blur-md"
-        />
+          {/* Deep matte backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => step === 'alert' && onClose()}
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+          />
 
-        {/* Futuristic Modal Card */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 12 }}
-          transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-          className="relative w-full max-w-md bg-[#0a0d16]/95 border border-cyan-500/30 rounded-3xl p-6 shadow-[0_0_60px_rgba(6,182,212,0.18)] text-foreground overflow-hidden ring-1 ring-white/10"
-        >
-          {/* Ambient Cyber Beam Glow */}
-          <div className="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
-
-          {step === 'alert' ? (
-            /* Step 1: Confirmation Alert Box */
-            <div className="space-y-5 text-left relative z-10 select-none">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-violet-950/80 border border-violet-500/40 flex items-center justify-center text-violet-400 shadow-[0_0_20px_rgba(139,92,246,0.3)]">
-                  <Cpu className="w-6 h-6 animate-pulse" />
+          {/* Refined Titanium Modal Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 28 }}
+            className="relative w-full max-w-md bg-[#101013] border border-white/[0.12] rounded-3xl p-6 shadow-2xl text-foreground overflow-hidden ring-1 ring-white/5"
+          >
+            {step === 'alert' ? (
+              /* Step 1: Confirmation Alert Box */
+              <div className="space-y-5 text-left relative z-10 select-none">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#18181c] border border-white/[0.1] flex items-center justify-center text-zinc-100">
+                    <Cpu className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-zinc-100 tracking-tight">
+                      Switch to Offline Mode?
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Private Local GPU Inference · Zero Cloud Network
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-foreground tracking-tight bg-gradient-to-r from-violet-200 via-cyan-200 to-white bg-clip-text text-transparent">
-                    Switch to Offline Mode?
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Private Local GPU Inference · Zero Cloud Network
+
+                {/* Hardware Telemetry Card */}
+                <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/[0.08] space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Target Compute:</span>
+                    <span className="font-medium text-zinc-200 font-mono">NVIDIA RTX 4060 (8GB)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Local LLM:</span>
+                    <span className="font-medium text-zinc-200 font-mono">Qwen 2.5 (7B Instruct)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Daemon Pipeline:</span>
+                    <span className="font-medium text-emerald-400">Background Auto-Start</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Multi-Tier Cache:</span>
+                    <span className="font-medium text-zinc-300">Redis L1 + Vector L2 Active</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Confirming will launch the background Ollama daemon and pre-allocate model weights into your RTX 4060 GPU VRAM.
+                </p>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleStartLoad}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <Cpu className="w-3.5 h-3.5 text-zinc-900" />
+                    <span>Confirm &amp; Initialize GPU →</span>
+                  </motion.button>
+                </div>
+              </div>
+            ) : (
+              /* Step 2: Minimalist High-End Loader */
+              <div className="py-4 text-center space-y-5 relative z-10 select-none">
+                {/* Minimalist Rotating Rings */}
+                <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-0 rounded-full border border-dashed border-white/20"
+                  />
+                  <motion.div
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-2 rounded-full border-2 border-t-zinc-100 border-r-transparent border-b-zinc-400 border-l-transparent"
+                  />
+                  <div className="relative w-12 h-12 rounded-2xl bg-[#18181c] border border-white/10 flex items-center justify-center shadow-md">
+                    {step === 'ready' ? (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                      </motion.div>
+                    ) : (
+                      <Cpu className="w-6 h-6 text-zinc-200 animate-pulse" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold tracking-wider uppercase text-zinc-300 font-mono">
+                    {step === 'ready' ? 'GPU ALLOCATION COMPLETE' : 'INITIALIZING LOCAL GPU'}
+                  </h4>
+                  <p className="text-xs text-zinc-400 font-mono tracking-wide h-4">
+                    {currentTask}
                   </p>
                 </div>
-              </div>
 
-              {/* Hardware Telemetry Card */}
-              <div className="p-3.5 rounded-2xl bg-[#0e1322] border border-white/[0.08] space-y-2.5 text-xs">
-                <div className="flex items-center justify-between text-muted-foreground/80">
-                  <span>Target Compute:</span>
-                  <span className="font-semibold text-violet-300 font-mono">NVIDIA RTX 4060 (8GB)</span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground/80">
-                  <span>Local LLM:</span>
-                  <span className="font-semibold text-cyan-300 font-mono">Qwen 2.5 (7B Instruct)</span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground/80">
-                  <span>Daemon Pipeline:</span>
-                  <span className="font-semibold text-emerald-400">Background Auto-Start</span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground/80">
-                  <span>Multi-Tier Cache:</span>
-                  <span className="font-semibold text-foreground">Redis L1 + Vector L2 Active</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground/75 leading-relaxed">
-                Confirming will seamlessly boot your local Ollama daemon and pre-allocate model weights into GPU VRAM for instant offline query execution.
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-colors"
-                >
-                  Cancel
-                </button>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={handleStartLoad}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 border border-violet-400/30 shadow-[0_0_20px_rgba(139,92,246,0.35)] transition-all flex items-center gap-1.5"
-                >
-                  <Cpu className="w-3.5 h-3.5" />
-                  <span>Confirm &amp; Initialize GPU →</span>
-                </motion.button>
-              </div>
-            </div>
-          ) : (
-            /* Step 2 & 3: Futuristic Holographic GPU Matrix Loader */
-            <div className="py-4 text-center space-y-6 relative z-10 select-none">
-              {/* Holographic Spinning Particle Rings */}
-              <div className="relative w-28 h-28 mx-auto flex items-center justify-center">
-                {/* Outer counter-clockwise ring */}
-                <motion.div
-                  animate={{ rotate: -360 }}
-                  transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-0 rounded-full border border-dashed border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
-                />
-                {/* Inner clockwise neon ring */}
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-2.5 rounded-full border-2 border-t-violet-400 border-r-transparent border-b-cyan-400 border-l-transparent shadow-[0_0_25px_rgba(139,92,246,0.4)]"
-                />
-                {/* Center Pulsing Chip Core */}
-                <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-tr from-violet-900 to-cyan-900 border border-cyan-400/50 flex items-center justify-center shadow-lg">
-                  {step === 'ready' ? (
+                {/* Refined Progress Bar */}
+                <div className="space-y-1.5 px-2">
+                  <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden p-0.5">
                     <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                    >
-                      <CheckCircle2 className="w-7 h-7 text-emerald-400 drop-shadow-[0_0_10px_#34d399]" />
-                    </motion.div>
-                  ) : (
-                    <Cpu className="w-7 h-7 text-cyan-300 animate-pulse drop-shadow-[0_0_10px_#22d3ee]" />
-                  )}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ ease: 'easeOut', duration: 0.3 }}
+                      className="h-full rounded-full bg-zinc-200"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                    <span>VRAM Pipeline</span>
+                    <span>{progress}%</span>
+                  </div>
                 </div>
               </div>
-
-              {/* Dynamic Telemetry Status */}
-              <div className="space-y-1.5">
-                <h4 className="text-sm font-bold tracking-tight text-foreground font-mono">
-                  {step === 'ready' ? '⚡ GPU ALLOCATION COMPLETE' : 'INITIALIZING LOCAL GPU'}
-                </h4>
-                <p className="text-xs text-cyan-300/90 font-mono tracking-wide h-4">
-                  {currentTask}
-                </p>
-              </div>
-
-              {/* Glowing High-Precision Progress Bar */}
-              <div className="space-y-1.5 px-2">
-                <div className="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden border border-white/[0.08] p-0.5">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ ease: 'easeOut', duration: 0.3 }}
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 via-indigo-500 to-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.8)]"
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground/60 font-mono">
-                  <span>VRAM Pipeline</span>
-                  <span>{progress}%</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </div>
+            )}
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );
@@ -295,6 +281,7 @@ export default function ChatClient() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isLocalHost, setIsLocalHost] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -304,6 +291,10 @@ export default function ChatClient() {
 
   useEffect(() => {
     textareaRef.current?.focus();
+    if (typeof window !== 'undefined') {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      setIsLocalHost(isLocal);
+    }
     api.settings().catch(() => {});
   }, []);
 
@@ -317,7 +308,6 @@ export default function ChatClient() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Click toggle handler: if going offline, prompt confirmation modal; if going online, instant switch
   const handleToggleClick = () => {
     if (!isOffline) {
       setShowModal(true);
@@ -328,13 +318,10 @@ export default function ChatClient() {
     }
   };
 
-  // Called when modal confirm button triggers GPU preload
   const handleConfirmOffline = async () => {
     try {
       await api.preloadModel('qwen2.5:7b');
-    } catch {
-      // Handled gracefully
-    }
+    } catch {}
     setIsOffline(true);
     await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
     toast.success('⚡ Local GPU Active: Qwen 2.5 (7B) loaded into RTX 4060 VRAM');
@@ -354,12 +341,27 @@ export default function ChatClient() {
       .map((m) => ({ role: m.role, content: m.content }));
     history.push({ role: 'user', content: trimmed });
 
-    // Intelligently route to localhost:8000 if user is testing local GPU, otherwise default API URL
-    const isLocalhostEnv = typeof window !== 'undefined' && 
+    // Determine target API endpoint
+    // If the user is on localhost:3000, target http://localhost:8000 directly (0 mixed content, direct GPU access)
+    // If the user is on cloud vercel.app and in offline mode:
+    const isLocal = typeof window !== 'undefined' && 
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const apiUrl = isLocalhostEnv
-      ? 'http://localhost:8000'
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+
+    let apiUrl = isLocal ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+
+    // On cloud Vercel in Offline mode:
+    // Browser security blocks HTTPS -> HTTP localhost directly.
+    // If user is on Vercel and toggled offline, we check if they are running locally:
+    if (!isLocal && isOffline) {
+      try {
+        const testLocal = await fetch('http://localhost:8000/api/health', { method: 'GET', mode: 'cors' });
+        if (testLocal.ok) {
+          apiUrl = 'http://localhost:8000';
+        }
+      } catch {
+        // Mixed Content blocked or local backend unreachable
+      }
+    }
 
     const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.8-flash';
 
@@ -414,12 +416,18 @@ export default function ChatClient() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       toast.error(`Query Failed: ${msg}`);
+
+      // If user was on cloud Vercel and attempted Offline GPU execution:
+      const helpContent = (!isLocal && isOffline)
+        ? `⚡ **Local RTX 4060 GPU Routing**:\n\nTo execute queries on your physical **RTX 4060 GPU**, open Cache-Craft at **[http://localhost:3000](http://localhost:3000)**!\n\n*(Your browser's security rules prevent cloud HTTPS domains like vercel.app from accessing your laptop's local ports directly. Your local instance is already running at [http://localhost:3000](http://localhost:3000)).*`
+        : `⚠️ **Connection Error**: ${msg}\n\n*Check that the backend server is reachable.*`;
+
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `⚠️ **Connection Error**: ${msg}\n\n*Check that the backend server is reachable.*`,
+          content: helpContent,
         },
       ]);
     } finally {
@@ -464,16 +472,16 @@ export default function ChatClient() {
     const isL2 = meta.hit_type === 'CACHE_HIT_L2';
 
     const pillStyle = (isL0 || isL1)
-      ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25' 
+      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
       : isL2
-      ? 'bg-violet-500/10 text-violet-300 border-violet-500/30'
-      : 'bg-white/[0.04] text-muted-foreground border-white/[0.08]';
+      ? 'bg-zinc-800 text-zinc-300 border-white/10'
+      : 'bg-white/[0.04] text-zinc-400 border-white/[0.08]';
 
     const dotColor = (isL0 || isL1)
-      ? 'bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]'
+      ? 'bg-emerald-400'
       : isL2
-      ? 'bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]'
-      : 'bg-muted-foreground/60';
+      ? 'bg-zinc-300'
+      : 'bg-zinc-500';
 
     const Icon = (isL0 || isL1) ? Zap : isL2 ? Database : Server;
 
@@ -499,20 +507,20 @@ export default function ChatClient() {
             {label}
           </span>
 
-          <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
+          <span className="text-[11px] text-zinc-400 font-mono flex items-center gap-1">
             ⚡ {meta.latency !== undefined ? `${meta.latency.toFixed(1)}ms` : '—'}
           </span>
 
           {meta.offline_mode && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-violet-500/30 bg-violet-500/10 text-violet-300 font-mono">
-              <Cpu className="w-2.5 h-2.5" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.05] text-zinc-300 font-mono">
+              <Cpu className="w-2.5 h-2.5 text-zinc-400" />
               <span>RTX 4060 Local</span>
             </span>
           )}
 
           {meta.routed_model && meta.hit_type === 'CACHE_MISS' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-              <Sparkles className="w-2.5 h-2.5 mr-0.5" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.04] text-zinc-300">
+              <Sparkles className="w-2.5 h-2.5 mr-0.5 text-zinc-400" />
               <span>Model: {meta.routed_model}</span>
             </span>
           )}
@@ -521,16 +529,16 @@ export default function ChatClient() {
             <div className="flex items-center gap-1 ml-auto">
               <button
                 onClick={() => handleCopy(msg.id, msg.content)}
-                className="p-1 rounded-md text-muted-foreground/60 hover:text-cyan-400 transition-colors"
+                className="p-1 rounded-md text-zinc-500 hover:text-zinc-200 transition-colors"
                 title="Copy response"
               >
-                {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-cyan-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
               <button
                 onClick={() => handleFeedback(msg.id, meta.query_hash!, true)}
                 disabled={meta.feedback !== null && meta.feedback !== undefined}
                 className={`p-1 rounded-md transition-colors ${
-                  meta.feedback === 'positive' ? 'text-cyan-400' : 'text-muted-foreground/60 hover:text-cyan-400'
+                  meta.feedback === 'positive' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-200'
                 }`}
                 title="Good answer"
               >
@@ -540,7 +548,7 @@ export default function ChatClient() {
                 onClick={() => handleFeedback(msg.id, meta.query_hash!, false)}
                 disabled={meta.feedback !== null && meta.feedback !== undefined}
                 className={`p-1 rounded-md transition-colors ${
-                  meta.feedback === 'negative' ? 'text-rose-400' : 'text-muted-foreground/60 hover:text-rose-400'
+                  meta.feedback === 'negative' ? 'text-rose-400' : 'text-zinc-500 hover:text-rose-400'
                 }`}
                 title="Bad answer"
               >
@@ -564,49 +572,68 @@ export default function ChatClient() {
         onConfirm={handleConfirmOffline}
       />
 
+      {/* Cloud Environment Notice for Offline Mode */}
+      {!isLocalHost && isOffline && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-2 mb-1 p-2.5 rounded-xl bg-[#141417] border border-white/[0.1] text-xs text-zinc-300 flex items-center justify-between shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-zinc-400 shrink-0" />
+            <span>
+              To run models on your physical <strong>RTX 4060 GPU</strong>, open your local instance at <strong>http://localhost:3000</strong>
+            </span>
+          </div>
+          <a
+            href="http://localhost:3000/dashboard/chat"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-[11px] font-semibold text-zinc-100 bg-white/[0.08] hover:bg-white/[0.14] px-2.5 py-1 rounded-lg border border-white/[0.1] transition-colors shrink-0 ml-2"
+          >
+            <span>Open Local</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </motion.div>
+      )}
+
       {/* Top Header Toolbar (active chat) */}
       {!isChatEmpty && (
         <div className="flex items-center justify-between py-3 border-b border-white/[0.08] shrink-0">
           <motion.button
             type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleResetChat}
-            className="h-8 px-3 text-xs text-muted-foreground hover:text-cyan-300 rounded-lg flex items-center gap-1.5 transition-colors border border-white/[0.08] hover:border-cyan-500/30 bg-[#0d121f]"
+            className="h-8 px-3 text-xs text-zinc-400 hover:text-zinc-200 rounded-lg flex items-center gap-1.5 transition-colors border border-white/[0.08] bg-[#121215]"
           >
-            <RotateCcw className="w-3 h-3 text-cyan-400" />
+            <RotateCcw className="w-3 h-3 text-zinc-400" />
             <span>New Session</span>
           </motion.button>
 
           {/* Unified 165Hz Online / Offline GPU Switch */}
           <motion.button
             type="button"
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             onClick={handleToggleClick}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm backdrop-blur-md select-none will-change-transform ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm select-none will-change-transform ${
               isOffline
-                ? 'bg-violet-950/70 border-violet-500/40 text-violet-200 hover:border-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.2)]'
-                : 'bg-cyan-950/50 border-cyan-500/40 text-cyan-200 hover:border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                ? 'bg-[#18181d] border-white/[0.18] text-zinc-100 hover:border-white/30'
+                : 'bg-[#141417] border-white/[0.1] text-zinc-200 hover:border-white/20'
             }`}
           >
             {isOffline ? (
               <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-400 shadow-[0_0_8px_#a855f7]" />
-                </span>
-                <Cpu className="w-3.5 h-3.5 text-violet-400" />
+                <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                 <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
               </>
             ) : (
               <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                </span>
-                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                <Globe className="w-3.5 h-3.5 text-zinc-300" />
                 <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
               </>
             )}
@@ -617,32 +644,32 @@ export default function ChatClient() {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 py-4 space-y-6">
         {isChatEmpty ? (
-          /* Cache-Craft Signature Cyber-Neural Hero (165Hz Optimized) */
+          /* Cache-Craft Minimalist Neural Hero (Subtle & Refined 165Hz) */
           <div className="h-full flex flex-col items-center justify-center -mt-8 space-y-7 select-none">
             {/* Cache-Craft Emblem & Title */}
             <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
+              initial={{ scale: 0.94, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-              className="flex items-center gap-4"
+              className="flex items-center gap-3.5"
             >
               <CacheCraftEmblem />
               <div className="text-left">
-                <h1 className="text-2xl sm:text-3xl text-foreground font-semibold tracking-tight bg-gradient-to-r from-cyan-300 via-blue-200 to-violet-300 bg-clip-text text-transparent">
+                <h1 className="text-2xl sm:text-3xl text-zinc-100 font-semibold tracking-tight">
                   Cache-Craft Neural Core
                 </h1>
-                <p className="text-xs text-muted-foreground/80 font-normal tracking-wide mt-0.5">
-                  Multi-Tier Semantic Memory · Redis L1 · pgvector L2 · RTX 4060 &amp; Cloud Routing
+                <p className="text-xs text-zinc-400 font-normal tracking-wide mt-0.5">
+                  Multi-Tier Semantic Memory · Redis L1 · pgvector L2 · Local &amp; Cloud Routing
                 </p>
               </div>
             </motion.div>
 
-            {/* Floating Glassmorphic Cyber Prompt Card */}
+            {/* Floating Matte Graphite Prompt Card */}
             <motion.div
-              initial={{ y: 16, opacity: 0 }}
+              initial={{ y: 14, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 380, damping: 26, delay: 0.05 }}
-              className="w-full max-w-2xl bg-[#0c101c]/95 border border-white/[0.1] hover:border-cyan-500/35 focus-within:border-cyan-500/50 focus-within:shadow-[0_0_35px_rgba(6,182,212,0.18)] rounded-[22px] shadow-2xl p-3.5 sm:p-4.5 space-y-3 transition-all duration-300 backdrop-blur-2xl will-change-transform ring-1 ring-white/5"
+              className="w-full max-w-2xl bg-[#121215] border border-white/[0.08] hover:border-white/[0.16] focus-within:border-white/25 focus-within:shadow-[0_0_30px_rgba(255,255,255,0.03)] rounded-[22px] shadow-2xl p-3.5 sm:p-4.5 space-y-3 transition-all duration-300 will-change-transform"
             >
               <textarea
                 ref={textareaRef}
@@ -658,14 +685,14 @@ export default function ChatClient() {
                 }}
                 rows={3}
                 placeholder={isOffline ? "Query local RTX 4060 GPU with semantic cache..." : "Ask anything or test semantic cache recall..."}
-                className="w-full bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/45 resize-none outline-none leading-relaxed font-normal"
+                className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 resize-none outline-none leading-relaxed font-normal"
               />
 
               {/* Functional Controls Toolbar */}
               <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
                 {/* Active Cache Engine Indicator */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-xs font-medium select-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] animate-pulse" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-medium select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   <span>Cache-Craft Active · L1 / L2</span>
                 </div>
 
@@ -673,44 +700,38 @@ export default function ChatClient() {
                 <div className="flex items-center gap-2">
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.03, y: -1 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.96 }}
                     transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                     onClick={handleToggleClick}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm backdrop-blur-md select-none will-change-transform ${
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm select-none will-change-transform ${
                       isOffline
-                        ? 'bg-violet-950/70 border-violet-500/40 text-violet-200 hover:border-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.2)]'
-                        : 'bg-cyan-950/50 border-cyan-500/40 text-cyan-200 hover:border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                        ? 'bg-[#18181d] border-white/[0.18] text-zinc-100 hover:border-white/30'
+                        : 'bg-[#141417] border-white/[0.1] text-zinc-200 hover:border-white/20'
                     }`}
                   >
                     {isOffline ? (
                       <>
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-400 shadow-[0_0_8px_#a855f7]" />
-                        </span>
-                        <Cpu className="w-3.5 h-3.5 text-violet-400" />
+                        <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                        <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                         <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
                       </>
                     ) : (
                       <>
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                        </span>
-                        <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                        <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                        <Globe className="w-3.5 h-3.5 text-zinc-300" />
                         <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
                       </>
                     )}
                   </motion.button>
 
                   <motion.button
-                    whileHover={{ scale: 1.06 }}
-                    whileTap={{ scale: 0.92 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
                     transition={{ type: 'spring', stiffness: 450, damping: 20 }}
                     onClick={() => sendQuery(input)}
                     disabled={!input.trim() || isLoading}
-                    className="h-8 w-8 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-cyan-500/25 active:scale-95 will-change-transform"
+                    className="h-8 w-8 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none shadow-sm active:scale-95 will-change-transform"
                     title="Send query (Enter)"
                   >
                     <ArrowUp className="w-4 h-4 stroke-[2.5]" />
@@ -724,11 +745,11 @@ export default function ChatClient() {
               {SUGGESTIONS.map((item, idx) => (
                 <motion.button
                   key={idx}
-                  whileHover={{ scale: 1.025, y: -2 }}
+                  whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.97 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 25 }}
                   onClick={() => sendQuery(item)}
-                  className="text-xs text-muted-foreground/80 hover:text-cyan-200 bg-[#0f1424]/80 hover:bg-[#141b2e] border border-white/[0.06] hover:border-cyan-500/35 rounded-full px-3.5 py-1.5 transition-all text-left shadow-xs backdrop-blur-md will-change-transform"
+                  className="text-xs text-zinc-400 hover:text-zinc-200 bg-[#141417] hover:bg-[#19191d] border border-white/[0.06] hover:border-white/[0.14] rounded-full px-3.5 py-1.5 transition-all text-left shadow-xs will-change-transform"
                 >
                   {item}
                 </motion.button>
@@ -744,23 +765,23 @@ export default function ChatClient() {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 420, damping: 28 }}
                     className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                   >
                     {isUser ? (
-                      <div className="bg-[#141a29] text-foreground text-sm sm:text-base rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] whitespace-pre-wrap leading-relaxed border border-white/[0.08] shadow-sm">
+                      <div className="bg-[#18181c] text-zinc-100 text-sm sm:text-base rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] whitespace-pre-wrap leading-relaxed border border-white/[0.08] shadow-sm">
                         {msg.content}
                       </div>
                     ) : (
                       <div className="w-full space-y-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                          <span className="text-xs font-semibold text-foreground/80 tracking-wide">Cache-Craft</span>
+                          <Zap className="w-3.5 h-3.5 text-zinc-300" />
+                          <span className="text-xs font-semibold text-zinc-200 tracking-wide">Cache-Craft</span>
                         </div>
 
-                        <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed font-normal">
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-200 leading-relaxed font-normal">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
@@ -777,9 +798,9 @@ export default function ChatClient() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 text-muted-foreground text-xs"
+                  className="flex items-center gap-2 text-zinc-400 text-xs"
                 >
-                  <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+                  <Zap className="w-4 h-4 text-zinc-300 animate-pulse" />
                   <span className="font-medium tracking-wide">
                     {isOffline ? "Routing query directly to local RTX 4060 GPU..." : "Routing through multi-tier cache & cloud..."}
                   </span>
@@ -794,7 +815,7 @@ export default function ChatClient() {
       {/* Docked Floating Input Bar (when chat is active) */}
       {!isChatEmpty && (
         <div className="absolute bottom-4 left-4 right-4 max-w-3xl mx-auto">
-          <div className="bg-[#0c101c]/95 border border-white/[0.1] hover:border-cyan-500/35 focus-within:border-cyan-500/50 rounded-2xl shadow-2xl p-2.5 sm:p-3 space-y-2 backdrop-blur-2xl transition-all ring-1 ring-white/5">
+          <div className="bg-[#121215]/95 border border-white/[0.1] hover:border-white/[0.18] focus-within:border-white/25 rounded-2xl shadow-2xl p-2.5 sm:p-3 space-y-2 backdrop-blur-2xl transition-all">
             <textarea
               ref={textareaRef}
               value={input}
@@ -809,56 +830,50 @@ export default function ChatClient() {
               }}
               rows={2}
               placeholder="Ask a follow-up query to test context caching..."
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/45 resize-none outline-none leading-relaxed"
+              className="w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 resize-none outline-none leading-relaxed"
             />
 
             <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
-              <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-medium select-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
+              <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span>Multi-Tier Active</span>
               </div>
 
               <div className="flex items-center gap-2">
                 <motion.button
                   type="button"
-                  whileHover={{ scale: 1.03, y: -1 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 25 }}
                   onClick={handleToggleClick}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm backdrop-blur-md select-none will-change-transform ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-medium transition-all shadow-sm select-none will-change-transform ${
                     isOffline
-                      ? 'bg-violet-950/70 border-violet-500/40 text-violet-200 hover:border-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.2)]'
-                      : 'bg-cyan-950/50 border-cyan-500/40 text-cyan-200 hover:border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                      ? 'bg-[#18181d] border-white/[0.18] text-zinc-100 hover:border-white/30'
+                      : 'bg-[#141417] border-white/[0.1] text-zinc-200 hover:border-white/20'
                   }`}
                 >
                   {isOffline ? (
                     <>
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-400 shadow-[0_0_8px_#a855f7]" />
-                      </span>
-                      <Cpu className="w-3.5 h-3.5 text-violet-400" />
-                      <span className="font-semibold tracking-wide">Offline · Local LLM</span>
+                      <span className="w-2 h-2 rounded-full bg-violet-400/90 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+                      <Cpu className="w-3.5 h-3.5 text-zinc-300" />
+                      <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
                     </>
                   ) : (
                     <>
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                      </span>
-                      <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                      <Globe className="w-3.5 h-3.5 text-zinc-300" />
                       <span className="font-semibold tracking-wide">Online · Cloud Gemini</span>
                     </>
                   )}
                 </motion.button>
 
                 <motion.button
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.92 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.94 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 20 }}
                   onClick={() => sendQuery(input)}
                   disabled={!input.trim() || isLoading}
-                  className="h-7 w-7 rounded-lg bg-gradient-to-tr from-cyan-500 via-blue-500 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none shadow-md shadow-cyan-500/25 active:scale-95 will-change-transform"
+                  className="h-7 w-7 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 flex items-center justify-center transition-all disabled:opacity-20 disabled:pointer-events-none shadow-sm active:scale-95 will-change-transform"
                   title="Send message"
                 >
                   <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
