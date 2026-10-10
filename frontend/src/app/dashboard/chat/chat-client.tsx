@@ -304,11 +304,7 @@ export default function ChatClient() {
 
   useEffect(() => {
     textareaRef.current?.focus();
-    api.settings().then((s) => {
-      if (s.offline_mode !== undefined) {
-        setIsOffline(s.offline_mode);
-      }
-    }).catch(() => {});
+    api.settings().catch(() => {});
   }, []);
 
   useEffect(() => {
