@@ -134,11 +134,10 @@ function OfflineTransitionModal({
     }, 1000);
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Deep glass backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -284,6 +283,7 @@ function OfflineTransitionModal({
           )}
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }
