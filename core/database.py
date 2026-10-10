@@ -7,16 +7,19 @@ import numpy as np
 
 import time
 
-DB_URL = os.environ.get("DATABASE_URL", "postgresql://cachecraft:cachepassword@127.0.0.1:5433/cachecraft_db")
+raw_url = os.environ.get("DATABASE_URL", "postgresql://cachecraft:cachepassword@127.0.0.1:5433/cachecraft_db")
+if raw_url and raw_url.startswith("postgres://"):
+    raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+DB_URL = raw_url
 _last_db_failure_time = 0.0
 
 def _get_raw_conn():
     global _last_db_failure_time
-    # If connection failed within the last 30 seconds, fail-fast (< 0.01ms) without blocking
-    if time.time() - _last_db_failure_time < 30.0:
+    # If connection failed within the last 10 seconds, fail-fast (< 0.01ms) without blocking
+    if time.time() - _last_db_failure_time < 10.0:
         raise psycopg.OperationalError("Database temporarily unreachable (fast fail)")
     try:
-        return psycopg.connect(DB_URL, row_factory=psycopg.rows.dict_row, connect_timeout=1)
+        return psycopg.connect(DB_URL, row_factory=psycopg.rows.dict_row, connect_timeout=5)
     except (psycopg.OperationalError, psycopg.errors.ConnectionTimeout) as e:
         _last_db_failure_time = time.time()
         raise e

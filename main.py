@@ -31,9 +31,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize PostgreSQL & pgvector tables on startup (if database is available)
+try:
+    db.init_db()
+    print("[Startup] PostgreSQL database and pgvector tables initialized successfully.")
+except Exception as e:
+    print(f"[Startup] PostgreSQL init notice (resilient mode active): {e}")
+
 # Load persisted threshold and TTL from DB on startup (survives restarts)
-_saved = db.get_setting("similarity_threshold")
-_saved_ttl = db.get_setting("ttl_seconds")
+_saved = None
+_saved_ttl = None
+try:
+    _saved = db.get_setting("similarity_threshold")
+    _saved_ttl = db.get_setting("ttl_seconds")
+except Exception:
+    pass
+
 router = CacheRouter(
     similarity_threshold=float(_saved) if _saved else 0.85,
     ttl_seconds=int(_saved_ttl) if _saved_ttl else 86400
@@ -155,7 +168,12 @@ def detailed_health():
         db.get_cache_size()
         db_ok = True
     except Exception:
-        pass
+        try:
+            db.init_db()
+            db.get_cache_size()
+            db_ok = True
+        except Exception:
+            pass
 
     llm_ok = False
     llm_model = None
