@@ -100,6 +100,8 @@ export interface Settings {
   cache_size: number;
   model: string;
   embedding_dimensions: number;
+  gpu_access_allowed?: boolean;
+  gpu_access_message?: string;
 }
 
 export interface QueryResult {
@@ -158,6 +160,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ offline_mode, preferred_local_model })
     }),
+
+  getGpuAccess: (simulateGuest?: boolean) =>
+    apiFetch<{
+      gpu_access_allowed: boolean;
+      is_creator_device: boolean;
+      client_ip: string;
+      message: string;
+    }>(`/api/system/gpu-access${simulateGuest ? '?guest=1' : ''}`),
 
   preloadModel: (model: string = 'qwen2.5:7b') =>
     apiFetch<{

@@ -103,6 +103,13 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
   }
 
   async function handleToggleOffline(enabled: boolean) {
+    if (enabled && settings.gpu_access_allowed === false) {
+      toast.error("Sorry, you're not allowed to access the GPU", {
+        description: "Offline mode is only available on the host machine's physical GPU.",
+        duration: 4000
+      });
+      return;
+    }
     setSavingOffline(true);
     setOfflineMode(enabled);
     try {
@@ -112,8 +119,13 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
           ? 'Offline Mode enabled: routing 100% through local Ollama'
           : 'Cloud Mode restored: Gemini Cloud active with local fallback'
       );
-    } catch {
-      toast.error('Failed to update offline mode');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('not allowed') || msg.includes('403')) {
+        toast.error("Sorry, you're not allowed to access the GPU");
+      } else {
+        toast.error('Failed to update offline mode');
+      }
       setOfflineMode(!enabled);
     } finally {
       setSavingOffline(false);

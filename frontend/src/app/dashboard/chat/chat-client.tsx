@@ -215,32 +215,9 @@ function OfflineTransitionModal({
                   </div>
                 </div>
 
-                {!isLocalHost ? (
-                  <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] text-xs text-zinc-300 space-y-2">
-                    <div className="font-medium text-zinc-200 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Cpu className="w-3.5 h-3.5 text-zinc-400" />
-                        Laptop GPU Execution
-                      </span>
-                      <span className="text-[10px] text-zinc-500 font-mono">Cloud Vercel</span>
-                    </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
-                      Browsers block cloud HTTPS sites from directly accessing laptop ports. Open your local instance to run queries on your physical RTX 4060 GPU with zero latency:
-                    </p>
-                    <a
-                      href="http://localhost:3000/dashboard/chat"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-zinc-950 bg-zinc-100 hover:bg-white py-2 rounded-xl transition-all shadow-sm"
-                    >
-                      <span>Open http://localhost:3000/dashboard/chat →</span>
-                    </a>
-                  </div>
-                ) : (
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Confirming will ensure the local Ollama daemon is active and pre-allocate model weights into your RTX 4060 GPU VRAM.
-                  </p>
-                )}
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Confirming will ensure the local Ollama daemon is active and pre-allocate model weights into your RTX 4060 GPU VRAM.
+                </p>
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -370,6 +347,7 @@ export default function ChatClient() {
   const [isOffline, setIsOffline] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isLocalHost, setIsLocalHost] = useState(false);
+  const [gpuAccessAllowed, setGpuAccessAllowed] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -486,16 +464,34 @@ export default function ChatClient() {
 
   useEffect(() => {
     textareaRef.current?.focus();
+    let isGuestMode = false;
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       const isLocal =
         hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        /^192\.168\./.test(hostname) ||
-        /^10\./.test(hostname) ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+        hostname === '127.0.0.1';
       setIsLocalHost(isLocal);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      isGuestMode = !isLocal || urlParams.get('guest') === '1' || urlParams.get('simulate_guest') === 'true';
+
+      if (isGuestMode) {
+        setGpuAccessAllowed(false);
+      }
     }
+
+    // Check GPU access with backend
+    api.getGpuAccess(isGuestMode)
+      .then((res) => {
+        setGpuAccessAllowed(res.gpu_access_allowed);
+      })
+      .catch(() => {
+        if (typeof window !== 'undefined') {
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          setGpuAccessAllowed(isLocal && !isGuestMode);
+        }
+      });
+
     api.settings().catch(() => {});
   }, []);
 
@@ -511,6 +507,13 @@ export default function ChatClient() {
 
   const handleToggleClick = () => {
     if (!isOffline) {
+      if (!gpuAccessAllowed) {
+        toast.error("Sorry, you're not allowed to access the GPU", {
+          description: "Offline mode is only available on the host machine's physical GPU.",
+          duration: 4000
+        });
+        return;
+      }
       setShowModal(true);
     } else {
       setIsOffline(false);
@@ -520,6 +523,10 @@ export default function ChatClient() {
   };
 
   const handleConfirmOffline = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
+    if (!gpuAccessAllowed) {
+      toast.error("Sorry, you're not allowed to access the GPU");
+      return { success: false, error: "Sorry, you're not allowed to access the GPU" };
+    }
     try {
       const res = await api.preloadModel('qwen2.5:7b');
       if (res.status === 'ready' && res.vram_loaded) {
@@ -532,6 +539,11 @@ export default function ChatClient() {
         return { success: false, error: res.message || 'Model weights could not be loaded into GPU VRAM.' };
       }
     } catch (err: any) {
+      const msg = err.message || '';
+      if (msg.includes('not allowed') || msg.includes('403')) {
+        toast.error("Sorry, you're not allowed to access the GPU");
+        return { success: false, error: "Sorry, you're not allowed to access the GPU" };
+      }
       return { success: false, error: err.message || 'Failed to connect to local backend on port 8000.' };
     }
   };
@@ -787,31 +799,6 @@ export default function ChatClient() {
         onClose={() => setShowModal(false)}
         onConfirm={handleConfirmOffline}
       />
-
-      {/* Cloud Environment Notice for Offline Mode */}
-      {!isLocalHost && isOffline && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-2 mb-1 p-2.5 rounded-xl bg-[#141417] border border-white/[0.1] text-xs text-zinc-300 flex items-center justify-between shadow-sm"
-        >
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-zinc-400 shrink-0" />
-            <span>
-              To run models on your physical <strong>RTX 4060 GPU</strong>, open your local instance at <strong>http://localhost:3000</strong>
-            </span>
-          </div>
-          <a
-            href="http://localhost:3000/dashboard/chat"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-[11px] font-semibold text-zinc-100 bg-white/[0.08] hover:bg-white/[0.14] px-2.5 py-1 rounded-lg border border-white/[0.1] transition-colors shrink-0 ml-2"
-          >
-            <span>Open Local</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </motion.div>
-      )}
 
       {/* Top Header Toolbar (active chat) */}
       {!isChatEmpty && (
