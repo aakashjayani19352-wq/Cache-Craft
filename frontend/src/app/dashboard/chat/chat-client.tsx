@@ -414,6 +414,72 @@ export default function ChatClient() {
     }
   }, [isOffline]);
 
+  // Terminal-style Prompt History (ArrowUp to recall last prompt for instant L0/L1 demo)
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const tempInputRef = useRef<string>('');
+
+  useEffect(() => {
+    const userPrompts = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content);
+    if (userPrompts.length > 0) {
+      setPromptHistory((prev) => {
+        const merged = [...prev];
+        for (const p of userPrompts) {
+          if (!merged.includes(p)) merged.push(p);
+        }
+        return merged.length > 0 ? merged : userPrompts;
+      });
+    }
+  }, [messages]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isLoading && input.trim()) {
+        sendQuery(input);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      const target = e.currentTarget;
+      const isAtStart = target.selectionStart === 0 && target.selectionEnd === 0;
+      if (isAtStart || input.trim() === '') {
+        if (promptHistory.length > 0) {
+          e.preventDefault();
+          if (historyIndex === -1) {
+            tempInputRef.current = input;
+            const newIndex = promptHistory.length - 1;
+            setHistoryIndex(newIndex);
+            setInput(promptHistory[newIndex]);
+          } else if (historyIndex > 0) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setInput(promptHistory[newIndex]);
+          }
+        }
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      if (historyIndex !== -1) {
+        e.preventDefault();
+        if (historyIndex < promptHistory.length - 1) {
+          const newIndex = historyIndex + 1;
+          setHistoryIndex(newIndex);
+          setInput(promptHistory[newIndex]);
+        } else {
+          setHistoryIndex(-1);
+          setInput(tempInputRef.current);
+        }
+      }
+      return;
+    }
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -477,6 +543,9 @@ export default function ChatClient() {
     const userMessage: Message = { id: Date.now().toString(), role: 'user', content: trimmed };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    setHistoryIndex(-1);
+    tempInputRef.current = '';
+    setPromptHistory((prev) => (prev[prev.length - 1] === trimmed ? prev : [...prev, trimmed]));
     setIsLoading(true);
 
     const history = messages
@@ -583,6 +652,8 @@ export default function ChatClient() {
   const handleResetChat = () => {
     setMessages([]);
     setInput('');
+    setHistoryIndex(-1);
+    tempInputRef.current = '';
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.removeItem(CHAT_STORAGE_KEY);
@@ -819,15 +890,11 @@ export default function ChatClient() {
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!isLoading && input.trim()) {
-                      sendQuery(input);
-                    }
-                  }
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (historyIndex !== -1) setHistoryIndex(-1);
                 }}
+                onKeyDown={handleKeyDown}
                 rows={3}
                 placeholder={isOffline ? "Query local RTX 4060 GPU with semantic cache..." : "Ask anything or test semantic cache recall..."}
                 className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 resize-none outline-none leading-relaxed font-normal"
@@ -964,15 +1031,11 @@ export default function ChatClient() {
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!isLoading && input.trim()) {
-                    sendQuery(input);
-                  }
-                }
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (historyIndex !== -1) setHistoryIndex(-1);
               }}
+              onKeyDown={handleKeyDown}
               rows={2}
               placeholder="Ask a follow-up query to test context caching..."
               className="w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 resize-none outline-none leading-relaxed"
