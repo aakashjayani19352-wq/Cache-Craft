@@ -359,6 +359,9 @@ function OfflineTransitionModal({
   );
 }
 
+const CHAT_STORAGE_KEY = 'cache_craft_tab_messages';
+const OFFLINE_STORAGE_KEY = 'cache_craft_tab_offline';
+
 export default function ChatClient() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -369,6 +372,47 @@ export default function ChatClient() {
   const [isLocalHost, setIsLocalHost] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Restore messages and offline mode from sessionStorage on mount (tab-scoped)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedMessages = sessionStorage.getItem(CHAT_STORAGE_KEY);
+        if (savedMessages) {
+          const parsed = JSON.parse(savedMessages);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
+        }
+        const savedOffline = sessionStorage.getItem(OFFLINE_STORAGE_KEY);
+        if (savedOffline !== null) {
+          setIsOffline(savedOffline === 'true');
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Save messages to sessionStorage whenever updated
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (messages.length > 0) {
+          sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+        } else {
+          sessionStorage.removeItem(CHAT_STORAGE_KEY);
+        }
+      } catch {}
+    }
+  }, [messages]);
+
+  // Save offline mode to sessionStorage whenever updated
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(OFFLINE_STORAGE_KEY, String(isOffline));
+      } catch {}
+    }
+  }, [isOffline]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -539,6 +583,11 @@ export default function ChatClient() {
   const handleResetChat = () => {
     setMessages([]);
     setInput('');
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(CHAT_STORAGE_KEY);
+      } catch {}
+    }
     textareaRef.current?.focus();
     toast.info('Started fresh session');
   };
