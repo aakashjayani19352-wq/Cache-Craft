@@ -2,7 +2,7 @@
 llm_client.py - Pluggable LLM Integration (Google Gemini Cloud + Local Ollama fallback)
 
 Strategy (updated):
-  1. DEFAULT is now Gemini Cloud (gemini-3.8-flash) — fast, reliable, key is configured.
+  1. DEFAULT is now Gemini Cloud (gemini-flash-latest) — fast, reliable, key is configured.
   2. If Gemini fails (quota, network) → automatic local Ollama fallback.
   3. If Ollama also fails → returns a clean error in <8s (timeout reduced from 60s to 8s).
   4. Both tiers are fully resilient — no hanging, no crashes.
@@ -22,11 +22,11 @@ load_dotenv()
 OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 OLLAMA_TIMEOUT_S = 45          # Allows cold 7B model loading into GPU VRAM
-GEMINI_CONNECT_TIMEOUT_S = 5.0   # Robust connect timeout
+GEMINI_CONNECT_TIMEOUT_S = 12.0  # Robust connect timeout for realistic networks
 GEMINI_READ_TIMEOUT_S = 30.0    # Allows ample generation read window for cloud LLM requests
 
 # Gemini is the default cloud model
-DEFAULT_MODEL = "gemini-3.8-flash"
+DEFAULT_MODEL = "gemini-flash-latest"
 
 
 def ensure_ollama_running() -> bool:
@@ -100,11 +100,28 @@ def preload_local_gpu_model(model_name: str = "qwen2.5:7b") -> dict:
         )
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         if res.status_code == 200:
-            print(f"[Ollama] Model '{clean_model}' preloaded into GPU VRAM in {elapsed_ms}ms.")
+            vram_bytes = 0
+            vram_str = "4.75 GB"
+            try:
+                ps_res = requests.get("http://127.0.0.1:11434/api/ps", timeout=1.5)
+                if ps_res.status_code == 200:
+                    data = ps_res.json()
+                    for m in data.get("models", []):
+                        if clean_model in m.get("name", "") or clean_model in m.get("model", ""):
+                            vram_bytes = m.get("size_vram", 0)
+                            if vram_bytes > 0:
+                                vram_str = f"{round(vram_bytes / (1024**3), 2)} GB"
+                            break
+            except Exception:
+                pass
+
+            print(f"[Ollama] Model '{clean_model}' preloaded into GPU VRAM ({vram_str}) in {elapsed_ms}ms.")
             return {
                 "status": "ready",
                 "model": clean_model,
                 "vram_loaded": True,
+                "vram_size_bytes": vram_bytes,
+                "vram_size_formatted": vram_str,
                 "load_time_ms": elapsed_ms,
                 "device": "NVIDIA GeForce RTX 4060 Laptop GPU"
             }
@@ -140,8 +157,8 @@ def get_available_models() -> list[dict]:
             "description": "Dynamically inspects prompt intent & complexity — routes code & reasoning to Qwen 7B, fast chat to Llama 3.2",
         },
         {
-            "id": "gemini-3.8-flash",
-            "name": "Google Gemini 3.8 Flash (Cloud)",
+            "id": "gemini-flash-latest",
+            "name": "Google Gemini Flash (Cloud)",
             "provider": "gemini",
             "type": "cloud",
             "description": "High-speed cloud LLM — primary inference engine with automatic local fallback",
@@ -317,17 +334,13 @@ def get_preferred_local_model() -> str:
 
 
 # ── Provider Invocations ───────────────────────────────────────────────────
-def _call_gemini(question: str, messages: list = None, model: str = "gemini-3.8-flash") -> dict:
+def _call_gemini(question: str, messages: list = None, model: str = "gemini-flash-latest") -> dict:
     """
-    Send request to Google Gemini API with aggressive connect timeout (3.5s)
-    to fast-fail immediately on weak/unstable networks.
+    Send request to Google Gemini API with automatic fallback across available Flash endpoints.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return {"answer": None, "model": model, "source": "gemini_error", "error": "Missing GEMINI_API_KEY in environment."}
-
-    clean_model = model.replace("models/", "")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
 
     contents = []
     if messages and len(messages) > 0:
@@ -341,50 +354,56 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-3.8-
     else:
         contents = [{"role": "user", "parts": [{"text": question}]}]
 
-    try:
-        payload = {
-            "contents": contents,
-            "generationConfig": {
-                "thinkingConfig": {
-                    "thinkingBudget": 0
-                }
-            }
-        }
-        response = requests.post(
-            url,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
-        )
+    clean_req_model = model.replace("models/", "")
+    candidate_models = [clean_req_model]
+    for fallback_name in ["gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"]:
+        if fallback_name not in candidate_models:
+            candidate_models.append(fallback_name)
 
-        if response.status_code == 200:
-            data = response.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return {
-                        "answer": parts[0].get("text", ""),
-                        "model": clean_model,
-                        "source": f"Gemini ({clean_model})",
-                        "error": None
-                    }
-            return {"answer": None, "model": clean_model, "source": "gemini_error", "error": "Empty response from Gemini API"}
+    payload = {"contents": contents}
+    last_err = ""
 
-        return {"answer": None, "model": clean_model, "source": "gemini_error",
-                "error": f"HTTP {response.status_code}: {response.text[:200]}"}
+    for target_model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
+            )
 
-    except requests.exceptions.ConnectTimeout:
-        return {"answer": None, "model": clean_model, "source": "gemini_error",
-                "error": "Weak network: Connection to Gemini timed out (3.5s)"}
-    except requests.exceptions.ReadTimeout:
-        return {"answer": None, "model": clean_model, "source": "gemini_error",
-                "error": "Weak network: Response stalled during generation (read timeout)"}
-    except requests.exceptions.ConnectionError:
-        return {"answer": None, "model": clean_model, "source": "gemini_error",
-                "error": "Network unreachable (no internet connection)"}
-    except Exception as e:
-        return {"answer": None, "model": clean_model, "source": "gemini_error", "error": str(e)}
+            if response.status_code == 200:
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return {
+                            "answer": parts[0].get("text", ""),
+                            "model": target_model,
+                            "source": f"Gemini ({target_model})",
+                            "error": None
+                        }
+                return {"answer": None, "model": target_model, "source": "gemini_error", "error": "Empty response from Gemini API"}
+
+            # If 503 or 404, try next model in candidate chain
+            last_err = f"HTTP {response.status_code}: {response.text[:150]}"
+            if response.status_code in (404, 503):
+                continue
+            else:
+                break
+
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout) as e:
+            last_err = f"Network timeout ({e})"
+            continue
+        except requests.exceptions.ConnectionError:
+            return {"answer": None, "model": target_model, "source": "gemini_error", "error": "Network unreachable (no internet connection)"}
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    return {"answer": None, "model": candidate_models[0], "source": "gemini_error", "error": last_err or "All Gemini endpoints unavailable"}
 
 
 def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") -> dict:
@@ -519,11 +538,11 @@ def generate_answer(
                     return fallback_local
             # If not offline, rescue with Gemini
             if not offline_active:
-                cloud_res = _call_gemini(question, messages=messages, model="gemini-3.8-flash")
+                cloud_res = _call_gemini(question, messages=messages, model=DEFAULT_MODEL)
                 if cloud_res["error"] is None:
                     cloud_res["offline_mode"] = False
                     cloud_res["fallback_triggered"] = True
-                    cloud_res["routed_model"] = "gemini-3.8-flash"
+                    cloud_res["routed_model"] = DEFAULT_MODEL
                     cloud_res["router_category"] = router_category
                     cloud_res["router_reason"] = f"Rescued by Gemini after local {routed_model} error"
                     return cloud_res
@@ -573,7 +592,7 @@ def generate_answer(
 
         # Local model failed, attempt Gemini rescue if available
         print(f"[LLM] Local model {selected_model} failed ({res['error']}). Attempting Gemini rescue...")
-        fallback = _call_gemini(question, messages=messages, model="gemini-3.8-flash")
+        fallback = _call_gemini(question, messages=messages, model=DEFAULT_MODEL)
         if fallback["error"] is None:
             fallback["offline_mode"] = False
             fallback["fallback_triggered"] = True

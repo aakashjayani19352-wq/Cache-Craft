@@ -25,7 +25,9 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -46,13 +48,59 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
   const [ttlSeconds, setTtlSeconds] = useState(settings.ttl_seconds ?? 86400);
   const [savingTtl, setSavingTtl] = useState(false);
 
-  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'gemini-flash-latest');
   const [savingModel, setSavingModel] = useState(false);
 
   const [offlineMode, setOfflineMode] = useState(settings.offline_mode ?? false);
   const [savingOffline, setSavingOffline] = useState(false);
 
   const [cleaning, setCleaning] = useState(false);
+  const [tunnelState, setTunnelState] = useState<{
+    status: 'active' | 'inactive' | 'error';
+    url: string | null;
+  }>({ status: 'inactive', url: null });
+  const [tunnelLoading, setTunnelLoading] = useState(false);
+  const [copiedTunnel, setCopiedTunnel] = useState(false);
+
+  React.useEffect(() => {
+    api.tunnelStatus().then((res) => {
+      if (res && res.status === 'active' && res.url) {
+        setTunnelState({ status: 'active', url: res.url });
+      }
+    }).catch(() => {});
+  }, []);
+
+  async function handleToggleTunnel() {
+    setTunnelLoading(true);
+    try {
+      if (tunnelState.status === 'active') {
+        await api.tunnelStop();
+        setTunnelState({ status: 'inactive', url: null });
+        toast.success('🛑 Cloudflare Tunnel stopped. Remote GPU access disabled.');
+      } else {
+        toast.info('⚡ Negotiating Cloudflare HTTPS tunnel (~4s)...');
+        const res = await api.tunnelStart();
+        if (res && res.status === 'active' && res.url) {
+          setTunnelState({ status: 'active', url: res.url });
+          toast.success(`⚡ Remote GPU Live: ${res.url}`);
+        } else {
+          toast.error(res?.message || 'Failed to start tunnel');
+        }
+      }
+    } catch (err: any) {
+      toast.error(`Tunnel notice: ${err.message}`);
+    } finally {
+      setTunnelLoading(false);
+    }
+  }
+
+  function handleCopyTunnelUrl() {
+    if (!tunnelState.url) return;
+    navigator.clipboard.writeText(tunnelState.url);
+    setCopiedTunnel(true);
+    toast.success('Tunnel URL copied to clipboard');
+    setTimeout(() => setCopiedTunnel(false), 2000);
+  }
 
   async function handleToggleOffline(enabled: boolean) {
     setSavingOffline(true);
@@ -167,8 +215,8 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
       description: 'Dynamically inspects prompt intent & complexity — switches to best local or cloud model in real time',
     },
     {
-      id: 'gemini-3.8-flash',
-      name: 'Google Gemini 3.8 Flash (Cloud)',
+      id: 'gemini-flash-latest',
+      name: 'Google Gemini Flash (Cloud)',
       provider: 'gemini',
       type: 'cloud',
       description: 'High-speed cloud LLM — primary inference engine with automatic local fallback',
@@ -567,6 +615,103 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                     </div>
                   );
                 })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+        {/* Card 5: Cloudflare Remote GPU Tunnel */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 28, delay: 0.2 }}
+          className="lg:col-span-2"
+        >
+          <Card className="rounded-3xl border border-black/[0.06] dark:border-white/[0.08] bg-card/70 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] overflow-hidden">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-white/[0.06] text-zinc-200">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold">Cloudflare Remote GPU Tunnel</CardTitle>
+                    <CardDescription className="text-xs">
+                      Enable or disable public HTTPS routing to your laptop&apos;s physical RTX 4060 GPU with 1 click.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <Badge
+                  variant="outline"
+                  className={`rounded-full px-3 py-1 text-xs font-mono flex items-center gap-1.5 ${
+                    tunnelState.status === 'active'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-white/[0.04] text-zinc-400 border-white/[0.08]'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      tunnelState.status === 'active' ? 'bg-emerald-400' : 'bg-zinc-500'
+                    }`}
+                  />
+                  <span>
+                    {tunnelState.status === 'active'
+                      ? 'Tunnel Active · GPU Exposed'
+                      : 'Tunnel Inactive · Private Local Only'}
+                  </span>
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4 pt-1">
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1.5 max-w-xl">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                    <Cpu className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>NVIDIA GeForce RTX 4060 Laptop GPU (8GB)</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {tunnelState.status === 'active'
+                      ? 'Anyone visiting cache-craft.vercel.app or querying from a phone on cellular data will be routed to your physical laptop GPU.'
+                      : 'When disabled, your GPU is completely private and only reachable on your local machine or home Wi-Fi. Turn this on only when you want remote visitors or judges to test your laptop.'}
+                  </p>
+                  {tunnelState.url && (
+                    <div className="flex items-center gap-2 pt-2">
+                      <span className="text-xs font-mono text-zinc-200 bg-white/[0.05] border border-white/[0.08] px-3 py-1 rounded-xl truncate max-w-md">
+                        {tunnelState.url}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyTunnelUrl}
+                        className="p-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 transition-colors"
+                        title="Copy Tunnel URL"
+                      >
+                        {copiedTunnel ? <Check className="w-3.5 h-3.5 text-zinc-200" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleToggleTunnel}
+                  disabled={tunnelLoading}
+                  className={`rounded-2xl px-5 py-5 text-xs font-semibold transition-all shrink-0 ${
+                    tunnelState.status === 'active'
+                      ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 shadow-none'
+                      : 'bg-zinc-100 hover:bg-white text-zinc-950 shadow-sm'
+                  }`}
+                >
+                  {tunnelLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                      {tunnelState.status === 'active' ? 'Stopping Tunnel...' : 'Negotiating Tunnel...'}
+                    </>
+                  ) : tunnelState.status === 'active' ? (
+                    'Disable Remote Tunnel'
+                  ) : (
+                    'Enable Remote GPU Tunnel →'
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>

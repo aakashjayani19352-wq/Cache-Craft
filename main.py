@@ -223,6 +223,51 @@ def detailed_health():
 @app.post("/api/query", tags=["Query"])
 def query(request: QueryRequest):
     """Main endpoint — 3-tier cache lookup with intelligent weak-network failover, offline mode & dynamic auto-routing."""
+    # If offline mode is requested on a remote host (like cloud Railway) where Ollama isn't local:
+    if request.offline_mode or (request.model and "qwen" in request.model):
+        try:
+            import requests as req
+            r = req.get("http://127.0.0.1:11434/api/tags", timeout=0.3)
+            local_ollama_available = (r.status_code == 200)
+        except Exception:
+            local_ollama_available = False
+
+        if not local_ollama_available:
+            tunnel_url = None
+            try:
+                tunnel_url = db.get_setting("laptop_gpu_tunnel_url")
+            except Exception:
+                pass
+
+            if tunnel_url and tunnel_url.startswith("https://"):
+                try:
+                    proxy_res = req.post(
+                        f"{tunnel_url.rstrip('/')}/api/query",
+                        json={
+                            "question": request.question,
+                            "messages": request.messages,
+                            "model": request.model or "qwen2.5:7b",
+                            "offline_mode": True
+                        },
+                        timeout=40
+                    )
+                    if proxy_res.status_code == 200:
+                        data = proxy_res.json()
+                        data["note"] = f"Processed on creator's NVIDIA RTX 4060 GPU via Secure Cloudflare Tunnel ({tunnel_url})"
+                        return data
+                except Exception as e:
+                    print(f"[Tunnel Proxy] Notice routing to laptop GPU: {e}")
+
+            return {
+                "answer": "⚠️ **Creator's RTX 4060 GPU Tunnel is Offline**\n\nThe creator has currently disabled remote GPU tunnel access. To run offline inference:\n- If you are the creator, toggle **Cloudflare Remote GPU Tunnel** to **Active** in **Settings** or run `.\\tunnel.bat start` on your laptop.\n- If testing locally, open **http://localhost:3000** on your laptop.",
+                "hit_type": "CACHE_MISS",
+                "latency": 8.0,
+                "offline_mode": True,
+                "routed_model": "RTX 4060 (Tunnel Offline)",
+                "confidence_score": 1.0,
+                "note": "Laptop GPU Tunnel inactive."
+            }
+
     return router.search(
         request.question,
         messages=request.messages,
@@ -249,8 +294,75 @@ def test_classify(prompt: str):
 @app.post("/api/models/preload", tags=["Models"])
 def preload_model(model: str = "qwen2.5:7b"):
     """Preloads local LLM model weights directly into GPU VRAM (RTX 4060)."""
+    try:
+        import requests as req
+        r = req.get("http://127.0.0.1:11434/api/tags", timeout=0.3)
+        local_ollama_available = (r.status_code == 200)
+    except Exception:
+        local_ollama_available = False
+
+    if not local_ollama_available:
+        tunnel_url = None
+        try:
+            tunnel_url = db.get_setting("laptop_gpu_tunnel_url")
+        except Exception:
+            pass
+
+        if tunnel_url and tunnel_url.startswith("https://"):
+            try:
+                import requests as req
+                res = req.post(f"{tunnel_url.rstrip('/')}/api/models/preload?model={model}", timeout=30)
+                if res.status_code == 200:
+                    data = res.json()
+                    data["note"] = f"Verified over Cloudflare Tunnel ({tunnel_url})"
+                    return data
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "message": f"Laptop tunnel reachable but failed during VRAM preload: {str(e)}"
+                }
+
+        return {
+            "status": "error",
+            "message": "Creator's RTX 4060 GPU tunnel is currently offline (disabled by creator). Enable it in Settings or run locally."
+        }
+
     import core.llm_client as llm
     return llm.preload_local_gpu_model(model)
+
+
+# ============================================================
+# Endpoints — Cloudflare Tunnel (Remote GPU Access)
+# ============================================================
+
+@app.get("/api/tunnel/status", tags=["Tunnel"])
+def get_tunnel():
+    """Check Cloudflare Tunnel status and live public URL."""
+    try:
+        from core.tunnel_manager import get_tunnel_status
+        return get_tunnel_status()
+    except Exception as e:
+        return {"status": "error", "message": str(e), "url": None}
+
+
+@app.post("/api/tunnel/start", tags=["Tunnel"])
+def start_tunnel_endpoint():
+    """Start Cloudflare Tunnel, allowing remote visitors on Vercel to access laptop RTX 4060 GPU."""
+    try:
+        from core.tunnel_manager import start_tunnel
+        return start_tunnel(8000)
+    except Exception as e:
+        return {"status": "error", "message": str(e), "url": None}
+
+
+@app.post("/api/tunnel/stop", tags=["Tunnel"])
+def stop_tunnel_endpoint():
+    """Stop Cloudflare Tunnel, disabling public access to laptop GPU."""
+    try:
+        from core.tunnel_manager import stop_tunnel
+        return stop_tunnel()
+    except Exception as e:
+        return {"status": "error", "message": str(e), "url": None}
 
 
 # ============================================================

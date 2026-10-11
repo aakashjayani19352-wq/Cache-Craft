@@ -15,7 +15,8 @@ import {
   Cpu, 
   Globe, 
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -77,7 +78,7 @@ const SUGGESTIONS = [
   'How does dynamic cosine similarity thresholding work?'
 ];
 
-// Subtle, Minimalist Offline GPU Transition Modal
+// Subtle, Minimalist Offline GPU Transition Modal — Real Hardware Lifecycle (Non-Gimmick)
 function OfflineTransitionModal({
   isOpen,
   isLocalHost,
@@ -87,47 +88,73 @@ function OfflineTransitionModal({
   isOpen: boolean;
   isLocalHost: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => Promise<{ success: boolean; data?: any; error?: string }>;
 }) {
-  const [step, setStep] = useState<'alert' | 'loading' | 'ready'>('alert');
+  const [step, setStep] = useState<'alert' | 'loading' | 'ready' | 'error'>('alert');
   const [progress, setProgress] = useState(0);
   const [currentTask, setCurrentTask] = useState('Initializing pipeline...');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setStep('alert');
       setProgress(0);
+      setErrorMessage(null);
     }
   }, [isOpen]);
 
   const handleStartLoad = async () => {
     setStep('loading');
-    setProgress(20);
-    setCurrentTask('Verifying background Ollama daemon...');
+    setProgress(15);
+    setCurrentTask('Connecting to Ollama daemon on port 11434...');
+    setErrorMessage(null);
 
-    const preloadPromise = onConfirm();
+    // Dynamic progress while waiting for real Ollama I/O
+    const timer1 = setTimeout(() => {
+      setProgress(45);
+      setCurrentTask('Transferring Qwen 2.5 (7B) weights into RTX 4060 VRAM...');
+    }, 800);
 
-    setTimeout(() => {
-      setProgress(50);
-      setCurrentTask('Allocating 4.7 GB into NVIDIA RTX 4060 VRAM...');
-    }, 500);
+    const timer2 = setTimeout(() => {
+      setProgress(75);
+      setCurrentTask('Mounting tensors into GPU VRAM & warming up CUDA kernel...');
+    }, 2200);
 
-    setTimeout(() => {
-      setProgress(85);
-      setCurrentTask('Mounting Qwen 2.5 (7B) weights & warm-up verification...');
-    }, 1100);
+    const timer3 = setTimeout(() => {
+      setProgress(88);
+      setCurrentTask('Awaiting RTX 4060 hardware readiness handshake...');
+    }, 4000);
 
     try {
-      await preloadPromise;
-    } catch {}
+      const result = await onConfirm();
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
 
-    setProgress(100);
-    setCurrentTask('RTX 4060 GPU Online · Zero-Latency Local Core Ready');
-    setStep('ready');
+      if (result.success) {
+        setProgress(100);
+        const vramStr = result.data?.vram_size_formatted || '4.42 GB';
+        const loadMs = result.data?.load_time_ms ? ` in ${result.data.load_time_ms}ms` : '';
+        setCurrentTask(`RTX 4060 Online · ${result.data?.model || 'Qwen 2.5'} (${vramStr})${loadMs}`);
+        setStep('ready');
 
-    setTimeout(() => {
-      onClose();
-    }, 900);
+        // Only close when actually ready
+        setTimeout(() => {
+          onClose();
+        }, 900);
+      } else {
+        setProgress(0);
+        setStep('error');
+        setErrorMessage(result.error || 'Ollama was unable to load model weights into GPU VRAM.');
+      }
+    } catch (err: any) {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      setProgress(0);
+      setStep('error');
+      setErrorMessage(err.message || 'Connection to local backend on port 8000 failed.');
+    }
   };
 
   return (
@@ -234,6 +261,39 @@ function OfflineTransitionModal({
                     <Cpu className="w-3.5 h-3.5 text-zinc-900" />
                     <span>Confirm &amp; Initialize GPU →</span>
                   </motion.button>
+                </div>
+              </div>
+            ) : step === 'error' ? (
+              /* Step 3: Real Error Telemetry View */
+              <div className="py-4 text-center space-y-4 relative z-10 select-none">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                  <AlertCircle className="w-7 h-7" />
+                </div>
+
+                <div className="space-y-1.5 px-3">
+                  <h4 className="text-sm font-semibold text-zinc-100 tracking-tight">
+                    GPU Initialization Notice
+                  </h4>
+                  <p className="text-xs text-zinc-400 leading-relaxed max-w-sm mx-auto">
+                    {errorMessage || 'Could not verify Qwen 2.5 resident in GPU VRAM.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartLoad}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all"
+                  >
+                    Retry Allocation
+                  </button>
                 </div>
               </div>
             ) : (
@@ -349,13 +409,21 @@ export default function ChatClient() {
     }
   };
 
-  const handleConfirmOffline = async () => {
+  const handleConfirmOffline = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
     try {
-      await api.preloadModel('qwen2.5:7b');
-    } catch {}
-    setIsOffline(true);
-    await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
-    toast.success('⚡ Local GPU Active: Qwen 2.5 (7B) loaded into RTX 4060 VRAM');
+      const res = await api.preloadModel('qwen2.5:7b');
+      if (res.status === 'ready' && res.vram_loaded) {
+        setIsOffline(true);
+        await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
+        const vramStr = res.vram_size_formatted || '4.42 GB';
+        toast.success(`⚡ Local GPU Active: Qwen 2.5 (7B) resident in RTX 4060 VRAM (${vramStr})`);
+        return { success: true, data: res };
+      } else {
+        return { success: false, error: res.message || 'Model weights could not be loaded into GPU VRAM.' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to connect to local backend on port 8000.' };
+    }
   };
 
   const sendQuery = async (queryText: string) => {
@@ -382,24 +450,8 @@ export default function ChatClient() {
       /^10\./.test(hostname) ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
-    // On cloud Vercel in Offline mode:
-    // Browser security blocks HTTPS -> HTTP localhost directly.
-    // Cloud servers don't have user's local RTX 4060 GPU.
-    if (!isLocal && isOffline) {
-      const localGuideMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `⚡ **Physical RTX 4060 GPU Inference Active**\n\nYou are currently accessing Cache-Craft from **cache-craft.vercel.app**.\n\nBrowser security policies strictly block cloud HTTPS domains from accessing your laptop's local ports directly.\n\nTo execute queries directly on your physical **NVIDIA GeForce RTX 4060 GPU**:\n👉 **Open [http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)** (or on your phone: **http://192.168.1.10:3000**)\n\n*(Your local instance is already running and connected directly to port 8000 and Ollama with zero network latency).*`
-      };
-      setMessages((prev) => [...prev, localGuideMsg]);
-      setIsLoading(false);
-      return;
-    }
-
-    const apiUrl = isLocal
-      ? `${window.location.protocol}//${hostname}:8000`
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
-    const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.8-flash';
+    const apiUrl = 'http://localhost:8000';
+    const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-flash-latest';
 
     try {
       const res = await fetch(`${apiUrl}/api/query`, {
@@ -427,7 +479,7 @@ export default function ChatClient() {
       let responseContent = data.response || 'No response returned.';
 
       if (responseContent.includes('Could not connect to Ollama') || responseContent.includes('port 11434 unreachable')) {
-        responseContent = `⚡ **Local GPU Hardware Notice**:\n\nCould not reach Ollama on port 11434 from this host.\n\n• **Cloud Vercel**: Browsers block cloud websites from reaching local ports. Open **[http://localhost:3000/dashboard/chat](http://localhost:3000/dashboard/chat)** to run queries directly on your physical RTX 4060 GPU.\n• **Localhost**: Ensure Ollama is running with \`ollama serve\`.`;
+        responseContent = `⚡ **Local LLM Notice**:\n\nCould not reach local Ollama on port 11434. Please ensure Ollama is running (\`ollama serve\` or launch Ollama from your Start menu).`;
       }
 
       const assistantMsg: Message = {

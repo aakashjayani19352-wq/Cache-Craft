@@ -164,9 +164,41 @@ export const api = {
       status: string;
       model: string;
       vram_loaded: boolean;
+      vram_size_bytes?: number;
+      vram_size_formatted?: string;
       load_time_ms?: number;
       device?: string;
+      message?: string;
     }>(`/api/models/preload?model=${encodeURIComponent(model)}`, {
+      method: 'POST'
+    }),
+
+  tunnelStatus: () =>
+    apiFetch<{
+      status: 'active' | 'inactive' | 'error';
+      url: string | null;
+      target?: string;
+      device?: string;
+      message?: string;
+    }>('/api/tunnel/status'),
+
+  tunnelStart: () =>
+    apiFetch<{
+      status: 'active' | 'inactive' | 'error';
+      url: string | null;
+      target?: string;
+      device?: string;
+      message?: string;
+    }>('/api/tunnel/start', {
+      method: 'POST'
+    }),
+
+  tunnelStop: () =>
+    apiFetch<{
+      status: 'active' | 'inactive' | 'error';
+      url: string | null;
+      message?: string;
+    }>('/api/tunnel/stop', {
       method: 'POST'
     }),
 
