@@ -15,8 +15,14 @@ export function getBaseUrl(): string {
     if (isLanOrLocal) {
       return `${window.location.protocol}//${hostname}:8000`;
     }
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '');
+    }
+    // In cloud production (e.g. Vercel) when NEXT_PUBLIC_API_URL is omitted,
+    // fallback to relative path so same-origin proxy handles /api without Mixed Content errors
+    return '';
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+  return (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

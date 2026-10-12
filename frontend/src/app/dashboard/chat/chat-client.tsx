@@ -22,7 +22,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, getBaseUrl } from '@/lib/api';
 
 // Cache-Craft's signature Minimalist Titanium Neural Emblem (Subtle, Mature, Sophisticated)
 function CacheCraftEmblem({ className = "w-11 h-11" }: { className?: string }) {
@@ -575,7 +575,7 @@ export default function ChatClient() {
       /^10\./.test(hostname) ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
-    const apiUrl = 'http://localhost:8000';
+    const apiUrl = getBaseUrl();
     const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-flash-latest';
 
     try {

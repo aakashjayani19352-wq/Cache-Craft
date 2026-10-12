@@ -4,6 +4,18 @@ import { withSentryConfig } from '@sentry/nextjs';
 // Define the base Next.js configuration
 const baseConfig: NextConfig = {
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
+  async rewrites() {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (backendUrl && !backendUrl.includes('localhost')) {
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${backendUrl.replace(/\/+$/, '')}/api/:path*`,
+        },
+      ];
+    }
+    return [];
+  },
   images: {
     remotePatterns: [
       {
