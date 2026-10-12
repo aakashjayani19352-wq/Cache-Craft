@@ -81,60 +81,217 @@ def ensure_ollama_running() -> bool:
     return False
 
 
+def get_gpu_hardware_telemetry(target_model: str = None) -> dict:
+    """
+    Returns true hardware telemetry for the local NVIDIA GPU and Ollama VRAM allocation.
+    Directly reads physical VRAM via `nvidia-smi` and active residency via Ollama's /api/ps.
+    """
+    clean_target = (target_model or "qwen2.5:7b").lower()
+    gpu_data = {
+        "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+        "vram_used_mb": 0,
+        "vram_total_mb": 8188,
+        "vram_free_mb": 8188,
+        "utilization_pct": 0,
+        "nvidia_smi_ok": False,
+        "ollama_online": False,
+        "loaded_models": [],
+        "is_model_in_vram": False,
+        "target_model": clean_target,
+        "vram_size_formatted": "0 GB",
+        "vram_size_bytes": 0,
+    }
+
+    # 1. Physical VRAM via nvidia-smi
+    try:
+        res = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu,name", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=4.0
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            parts = [p.strip() for p in res.stdout.strip().split(",")]
+            if len(parts) >= 3:
+                gpu_data["vram_used_mb"] = int(float(parts[0]))
+                gpu_data["vram_total_mb"] = int(float(parts[1]))
+                gpu_data["vram_free_mb"] = max(0, gpu_data["vram_total_mb"] - gpu_data["vram_used_mb"])
+                gpu_data["utilization_pct"] = int(float(parts[2]))
+                gpu_data["nvidia_smi_ok"] = True
+            if len(parts) >= 4 and parts[3]:
+                gpu_data["gpu_name"] = parts[3]
+    except Exception:
+        pass
+
+    # 2. Ollama running models & VRAM residency via /api/ps
+    try:
+        r = requests.get(f"{OLLAMA_BASE}/api/ps", timeout=1.5)
+        if r.status_code == 200:
+            gpu_data["ollama_online"] = True
+            data = r.json()
+            models = data.get("models", [])
+            for m in models:
+                vram_bytes = m.get("size_vram", 0)
+                m_info = {
+                    "name": m.get("name", ""),
+                    "model": m.get("model", ""),
+                    "size_vram_bytes": vram_bytes,
+                    "size_vram_mb": round(vram_bytes / (1024 * 1024), 1),
+                    "size_vram_formatted": f"{round(vram_bytes / (1024**3), 2)} GB" if vram_bytes > 0 else "0 GB",
+                    "expires_at": m.get("expires_at"),
+                }
+                gpu_data["loaded_models"].append(m_info)
+
+                # Check if target model is physically resident in VRAM
+                m_name = m_info["name"].lower()
+                m_mod = m_info["model"].lower()
+                target_base = clean_target.split(":")[0]
+                if (clean_target in m_name or clean_target in m_mod or target_base in m_name or target_base in m_mod) and vram_bytes > 0:
+                    gpu_data["is_model_in_vram"] = True
+                    gpu_data["vram_size_formatted"] = m_info["size_vram_formatted"]
+                    gpu_data["vram_size_bytes"] = vram_bytes
+    except Exception:
+        pass
+
+    return gpu_data
+
+
 def preload_local_gpu_model(model_name: str = "qwen2.5:7b") -> dict:
     """
-    Guarantees Ollama background daemon is running, then calls Ollama's /api/generate
-    with keep_alive='60m' to preload model weights into GPU VRAM (RTX 4060).
+    Physically loads model weights into RTX 4060 GPU VRAM.
+    CRITICAL: Only returns vram_loaded=True AFTER verifying `size_vram > 0` via /api/ps.
     """
+    clean_model = model_name or "qwen2.5:7b"
+
+    # Step 1: Ensure Ollama is running
     daemon_ok = ensure_ollama_running()
     if not daemon_ok:
-        return {"status": "error", "message": "Ollama daemon not available on this machine", "vram_loaded": False}
+        return {
+            "status": "error",
+            "message": "Local Ollama daemon is not running on port 11434 and could not be started.",
+            "vram_loaded": False,
+            "model": clean_model
+        }
 
-    clean_model = model_name or "qwen2.5:7b"
+    # Step 2: Check if model is ALREADY resident in GPU VRAM
+    telemetry = get_gpu_hardware_telemetry(clean_model)
+    if telemetry.get("is_model_in_vram"):
+        return {
+            "status": "ready",
+            "model": clean_model,
+            "vram_loaded": True,
+            "vram_size_bytes": telemetry["vram_size_bytes"],
+            "vram_size_formatted": telemetry["vram_size_formatted"],
+            "load_time_ms": 0,
+            "device": telemetry["gpu_name"],
+            "vram_used_mb": telemetry["vram_used_mb"],
+            "vram_total_mb": telemetry["vram_total_mb"],
+            "message": f"Model {clean_model} is already resident in RTX 4060 VRAM."
+        }
+
+    # Step 3: Physically load model into GPU VRAM via Ollama /api/generate
     try:
         t0 = time.perf_counter()
-        # Ping Ollama to load model weights directly into GPU VRAM
         res = requests.post(
-            "http://127.0.0.1:11434/api/generate",
-            json={"model": clean_model, "keep_alive": "60m"},
-            timeout=20
+            f"{OLLAMA_BASE}/api/generate",
+            json={"model": clean_model, "prompt": "", "keep_alive": -1},
+            timeout=45
         )
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
-        if res.status_code == 200:
-            vram_bytes = 0
-            vram_str = "4.75 GB"
+        if res.status_code != 200:
+            return {
+                "status": "error",
+                "model": clean_model,
+                "vram_loaded": False,
+                "message": f"Ollama returned HTTP {res.status_code}: {res.text[:120]}"
+            }
+
+        # Step 4: PHYSICALLY VERIFY via /api/ps and nvidia-smi
+        verified_telemetry = None
+        for _ in range(6):
+            verified_telemetry = get_gpu_hardware_telemetry(clean_model)
+            if verified_telemetry.get("is_model_in_vram"):
+                break
+            time.sleep(0.5)
+
+        if not verified_telemetry or not verified_telemetry.get("is_model_in_vram"):
+            return {
+                "status": "error",
+                "model": clean_model,
+                "vram_loaded": False,
+                "message": f"Model load command completed, but physical VRAM verification failed (0 bytes reported)."
+            }
+
+        print(f"[Ollama] Model '{clean_model}' verified resident in GPU VRAM ({verified_telemetry['vram_size_formatted']}) in {elapsed_ms}ms.")
+        return {
+            "status": "ready",
+            "model": clean_model,
+            "vram_loaded": True,
+            "vram_size_bytes": verified_telemetry["vram_size_bytes"],
+            "vram_size_formatted": verified_telemetry["vram_size_formatted"],
+            "load_time_ms": elapsed_ms,
+            "device": verified_telemetry["gpu_name"],
+            "vram_used_mb": verified_telemetry["vram_used_mb"],
+            "vram_total_mb": verified_telemetry["vram_total_mb"],
+            "message": f"Model {clean_model} physically loaded and verified in RTX 4060 VRAM."
+        }
+    except Exception as e:
+        print(f"[Ollama Preload] Error: {e}")
+        return {
+            "status": "error",
+            "model": clean_model,
+            "vram_loaded": False,
+            "message": f"Failed to load model into GPU: {str(e)}"
+        }
+
+
+def unload_local_gpu_model(model_name: str = None) -> dict:
+    """
+    Unloads local LLM weights from RTX 4060 GPU VRAM, freeing dedicated memory back to 0 MB.
+    Called on browser tab close (beforeunload/pagehide) or when user toggles back to Online mode.
+    """
+    clean_model = model_name or "qwen2.5:7b"
+    unloaded_models = []
+
+    try:
+        # Check currently loaded models
+        targets = [clean_model]
+        try:
+            r = requests.get(f"{OLLAMA_BASE}/api/ps", timeout=1.5)
+            if r.status_code == 200:
+                for m in r.json().get("models", []):
+                    m_name = m.get("name") or m.get("model")
+                    if m_name and m_name not in targets:
+                        targets.append(m_name)
+        except Exception:
+            pass
+
+        for target in targets:
             try:
-                ps_res = requests.get("http://127.0.0.1:11434/api/ps", timeout=1.5)
-                if ps_res.status_code == 200:
-                    data = ps_res.json()
-                    for m in data.get("models", []):
-                        if clean_model in m.get("name", "") or clean_model in m.get("model", ""):
-                            vram_bytes = m.get("size_vram", 0)
-                            if vram_bytes > 0:
-                                vram_str = f"{round(vram_bytes / (1024**3), 2)} GB"
-                            break
+                res = requests.post(
+                    f"{OLLAMA_BASE}/api/generate",
+                    json={"model": target, "prompt": "", "keep_alive": 0},
+                    timeout=5
+                )
+                if res.status_code == 200:
+                    unloaded_models.append(target)
             except Exception:
                 pass
 
-            print(f"[Ollama] Model '{clean_model}' preloaded into GPU VRAM ({vram_str}) in {elapsed_ms}ms.")
-            return {
-                "status": "ready",
-                "model": clean_model,
-                "vram_loaded": True,
-                "vram_size_bytes": vram_bytes,
-                "vram_size_formatted": vram_str,
-                "load_time_ms": elapsed_ms,
-                "device": "NVIDIA GeForce RTX 4060 Laptop GPU"
-            }
+        telemetry = get_gpu_hardware_telemetry(clean_model)
+        print(f"[Ollama Unload] Released GPU VRAM. Unloaded: {unloaded_models}. Current VRAM: {telemetry.get('vram_used_mb', 0)} MB.")
         return {
-            "status": "warning",
-            "model": clean_model,
-            "vram_loaded": False,
-            "message": f"Ollama returned HTTP {res.status_code}"
+            "status": "unloaded",
+            "unloaded_models": unloaded_models,
+            "vram_used_mb": telemetry.get("vram_used_mb", 0),
+            "vram_total_mb": telemetry.get("vram_total_mb", 8188),
+            "is_model_in_vram": telemetry.get("is_model_in_vram", False),
+            "message": f"GPU VRAM released. Models unloaded from RTX 4060."
         }
     except Exception as e:
-        print(f"[Ollama Preload] Notice: {e}")
-        return {"status": "error", "model": clean_model, "vram_loaded": False, "message": str(e)}
+        print(f"[Ollama Unload] Error: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to unload model from GPU: {str(e)}"
+        }
 
 
 def get_available_models() -> list[dict]:

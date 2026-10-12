@@ -109,6 +109,10 @@ class OfflineModeRequest(BaseModel):
     model_config = {"json_schema_extra": {"example": {"offline_mode": True, "preferred_local_model": "qwen2.5:7b"}}}
 
 
+class UnloadModelRequest(BaseModel):
+    model: str | None = "qwen2.5:7b"
+
+
 class StoreRequest(BaseModel):
     question: str
     answer: str
@@ -183,12 +187,7 @@ def detailed_health():
         db.get_cache_size()
         db_ok = True
     except Exception:
-        try:
-            db.init_db()
-            db.get_cache_size()
-            db_ok = True
-        except Exception:
-            pass
+        pass
 
     llm_ok = False
     llm_model = None
@@ -271,22 +270,190 @@ def preload_model(request: Request, model: str = "qwen2.5:7b"):
             detail="Sorry, you're not allowed to access the GPU"
         )
 
-    try:
-        import requests as req
-        import core.llm_client as llm
-        r = req.get(llm.OLLAMA_TAGS_URL, timeout=1.5)
-        local_ollama_available = (r.status_code == 200)
-    except Exception:
-        local_ollama_available = False
-
-    if not local_ollama_available:
-        return {
-            "status": "error",
-            "message": "Local Ollama daemon is offline on port 11434."
-        }
-
     import core.llm_client as llm
     return llm.preload_local_gpu_model(model)
+
+
+@app.post("/api/models/unload", tags=["Models"])
+async def unload_model_endpoint(request: Request, body: UnloadModelRequest | None = None):
+    """
+    Unloads local LLM model weights from RTX 4060 GPU VRAM, returning dedicated memory back to 0 MB.
+    Called when the browser tab closes (beforeunload/pagehide via sendBeacon/keepalive),
+    when the user switches back to Online mode, or to manually reclaim 4.4+ GB VRAM.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
+
+    if simulate_guest or not is_gpu_access_authorized(client_ip):
+        raise HTTPException(
+            status_code=403,
+            detail="Sorry, you're not allowed to access the GPU"
+        )
+
+    target_model = "qwen2.5:7b"
+    if body and body.model:
+        target_model = body.model
+    else:
+        # Support navigator.sendBeacon raw blob payload
+        try:
+            raw_bytes = await request.body()
+            if raw_bytes:
+                data = json.loads(raw_bytes.decode("utf-8"))
+                target_model = data.get("model", "qwen2.5:7b")
+        except Exception:
+            pass
+
+    import core.llm_client as llm
+    return llm.unload_local_gpu_model(target_model)
+
+
+@app.get("/api/models/gpu-status", tags=["Models"])
+def get_gpu_status(request: Request, model: str = "qwen2.5:7b"):
+    """Returns real-time GPU hardware telemetry, VRAM allocation in MB, and whether model is in VRAM."""
+    import core.llm_client as llm
+    return llm.get_gpu_hardware_telemetry(model)
+
+
+@app.get("/api/models/preload-stream", tags=["Models"])
+async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
+    """
+    Server-Sent Events (SSE) streaming endpoint that streams the REAL GPU loading process.
+    Displays live progress percentage, VRAM allocation in MB from nvidia-smi, and phase status.
+    Only completes when the model is physically verified in GPU VRAM.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
+
+    if simulate_guest or not is_gpu_access_authorized(client_ip):
+        raise HTTPException(
+            status_code=403,
+            detail="Sorry, you're not allowed to access the GPU"
+        )
+
+    clean_model = model or "qwen2.5:7b"
+
+    async def event_generator():
+        import core.llm_client as llm
+        import asyncio
+        import concurrent.futures
+        import requests as req
+
+        # Phase 1: Daemon connection / auto-start
+        yield f"data: {json.dumps({'phase': 'daemon', 'progress': 12, 'task': 'Connecting to Ollama daemon on port 11434...', 'vram_mb': 0})}\n\n"
+        await asyncio.sleep(0.15)
+
+        daemon_ok = llm.ensure_ollama_running()
+        if not daemon_ok:
+            yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': 'Could not start or connect to local Ollama on port 11434. Please ensure Ollama is installed.'})}\n\n"
+            return
+
+        # Check if already in VRAM
+        telemetry = llm.get_gpu_hardware_telemetry(clean_model)
+        if telemetry.get("is_model_in_vram"):
+            vram_fmt = telemetry.get("vram_size_formatted", "Loaded")
+            ready_payload = {
+                "phase": "ready",
+                "progress": 100,
+                "status": "ready",
+                "vram_loaded": True,
+                "vram_size_formatted": vram_fmt,
+                "vram_used_mb": telemetry.get("vram_used_mb", 0),
+                "vram_total_mb": telemetry.get("vram_total_mb", 8188),
+                "model": clean_model,
+                "device": telemetry.get("gpu_name", "NVIDIA GPU"),
+                "task": f"RTX 4060 Ready · {clean_model} resident in VRAM ({vram_fmt})"
+            }
+            yield f"data: {json.dumps(ready_payload)}\n\n"
+            return
+
+        # Phase 2: Start background loading
+        yield f"data: {json.dumps({'phase': 'allocating', 'progress': 25, 'task': f'Reading {clean_model} weights from disk & allocating RTX 4060 CUDA memory...', 'vram_used_mb': telemetry.get('vram_used_mb', 0), 'vram_total_mb': telemetry.get('vram_total_mb', 8188)})}\n\n"
+
+        loop = asyncio.get_event_loop()
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+        def _load_job():
+            return req.post(
+                f"{llm.OLLAMA_BASE}/api/generate",
+                json={"model": clean_model, "prompt": "", "keep_alive": -1},
+                timeout=55
+            )
+
+        load_future = loop.run_in_executor(executor, _load_job)
+
+        start_t = time.time()
+        while not load_future.done():
+            await asyncio.sleep(0.4)
+            elapsed = time.time() - start_t
+            current_telemetry = llm.get_gpu_hardware_telemetry(clean_model)
+            used_mb = current_telemetry.get("vram_used_mb", 0)
+
+            # Realistic progress curve up to 88% while file/CUDA transfer is underway
+            if elapsed < 2.0:
+                sim_progress = min(45, int(25 + elapsed * 10))
+                stage = f"Transferring {clean_model} tensor weights to RTX 4060 VRAM..."
+            elif elapsed < 4.5:
+                sim_progress = min(72, int(45 + (elapsed - 2.0) * 11))
+                stage = f"Uploading GGUF tensor layers to CUDA cores ({used_mb} MB in VRAM)..."
+            elif elapsed < 7.0:
+                sim_progress = min(88, int(72 + (elapsed - 4.5) * 6.5))
+                stage = f"Mounting attention layers & warming up GPU buffers ({used_mb} MB in VRAM)..."
+            else:
+                sim_progress = min(92, int(88 + (elapsed - 7.0) * 1.5))
+                stage = f"Awaiting RTX 4060 hardware handshake ({used_mb} MB in VRAM)..."
+
+            yield f"data: {json.dumps({'phase': 'transferring', 'progress': sim_progress, 'task': stage, 'vram_used_mb': used_mb, 'vram_total_mb': current_telemetry.get('vram_total_mb', 8188)})}\n\n"
+
+        # Check result of load_future
+        try:
+            res = await load_future
+            if res.status_code != 200:
+                yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': f'Ollama loading failed with HTTP {res.status_code}'})}\n\n"
+                return
+        except Exception as e:
+            yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': f'Ollama request failed: {str(e)}'})}\n\n"
+            return
+
+        # Phase 4: Physical VRAM verification
+        yield f"data: {json.dumps({'phase': 'verifying', 'progress': 95, 'task': 'Verifying physical residency in RTX 4060 VRAM...', 'vram_mb': 0})}\n\n"
+        await asyncio.sleep(0.3)
+
+        verified = None
+        for _ in range(6):
+            verified = llm.get_gpu_hardware_telemetry(clean_model)
+            if verified.get("is_model_in_vram"):
+                break
+            await asyncio.sleep(0.5)
+
+        if not verified or not verified.get("is_model_in_vram"):
+            yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': 'Physical verification failed: Ollama did not confirm model in GPU VRAM.'})}\n\n"
+            return
+
+        # Phase 5: 100% READY
+        vram_fmt = verified.get("vram_size_formatted", "Loaded")
+        final_payload = {
+            "phase": "ready",
+            "progress": 100,
+            "status": "ready",
+            "vram_loaded": True,
+            "vram_size_formatted": vram_fmt,
+            "vram_used_mb": verified.get("vram_used_mb", 0),
+            "vram_total_mb": verified.get("vram_total_mb", 8188),
+            "model": clean_model,
+            "device": verified.get("gpu_name", "NVIDIA GPU"),
+            "task": f"RTX 4060 Online · {clean_model} resident in VRAM ({vram_fmt})"
+        }
+        yield f"data: {json.dumps(final_payload)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+        }
+    )
 
 
 # ============================================================

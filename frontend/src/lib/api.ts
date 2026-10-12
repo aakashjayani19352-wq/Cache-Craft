@@ -189,6 +189,39 @@ export const api = {
       method: 'POST'
     }),
 
+  unloadModel: (model: string = 'qwen2.5:7b') =>
+    apiFetch<{
+      status: string;
+      unloaded_models?: string[];
+      vram_used_mb: number;
+      is_model_in_vram: boolean;
+      message: string;
+    }>('/api/models/unload', {
+      method: 'POST',
+      body: JSON.stringify({ model })
+    }),
+
+  getGpuStatus: (model: string = 'qwen2.5:7b') =>
+    apiFetch<{
+      gpu_name: string;
+      vram_used_mb: number;
+      vram_total_mb: number;
+      vram_free_mb: number;
+      utilization_pct: number;
+      nvidia_smi_ok: boolean;
+      ollama_online: boolean;
+      loaded_models: Array<{
+        name: string;
+        model: string;
+        size_vram_bytes: number;
+        size_vram_mb: number;
+        size_vram_formatted: string;
+      }>;
+      is_model_in_vram: boolean;
+      vram_size_formatted: string;
+      vram_size_bytes: number;
+    }>(`/api/models/gpu-status?model=${encodeURIComponent(model)}`),
+
   tunnelStatus: () =>
     apiFetch<{
       status: 'active' | 'inactive' | 'error';

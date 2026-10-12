@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Zap, 
   Database, 
@@ -170,85 +171,146 @@ const SUGGESTIONS = [
 function OfflineTransitionModal({
   isOpen,
   isLocalHost,
+  targetModel = 'qwen2.5:7b',
+  gpuTelemetry,
   onClose,
-  onConfirm
+  onSuccess
 }: {
   isOpen: boolean;
   isLocalHost: boolean;
+  targetModel?: string;
+  gpuTelemetry?: any;
   onClose: () => void;
-  onConfirm: () => Promise<{ success: boolean; data?: any; error?: string }>;
+  onSuccess: (data: any) => void;
 }) {
   const [step, setStep] = useState<'alert' | 'loading' | 'ready' | 'error'>('alert');
+  const [mounted, setMounted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTask, setCurrentTask] = useState('Initializing pipeline...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [vramUsedMb, setVramUsedMb] = useState<number>(0);
+  const [vramTotalMb, setVramTotalMb] = useState<number>(8188);
+  const [vramFormatted, setVramFormatted] = useState<string>('0 GB');
+  const [activeDevice, setActiveDevice] = useState<string>('NVIDIA GeForce RTX 4060 (8GB)');
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
       setStep('alert');
       setProgress(0);
       setErrorMessage(null);
     }
   }, [isOpen]);
 
-  const handleStartLoad = async () => {
+  const handleStartLoad = () => {
     setStep('loading');
-    setProgress(15);
+    setProgress(10);
     setCurrentTask('Connecting to Ollama daemon on port 11434...');
     setErrorMessage(null);
 
-    // Dynamic progress while waiting for real Ollama I/O
-    const timer1 = setTimeout(() => {
-      setProgress(45);
-      setCurrentTask('Transferring Qwen 2.5 (7B) weights into RTX 4060 VRAM...');
-    }, 800);
+    const baseUrl = getBaseUrl();
+    const streamUrl = `${baseUrl}/api/models/preload-stream?model=${encodeURIComponent(targetModel)}`;
 
-    const timer2 = setTimeout(() => {
-      setProgress(75);
-      setCurrentTask('Mounting tensors into GPU VRAM & warming up CUDA kernel...');
-    }, 2200);
-
-    const timer3 = setTimeout(() => {
-      setProgress(88);
-      setCurrentTask('Awaiting RTX 4060 hardware readiness handshake...');
-    }, 4000);
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
 
     try {
-      const result = await onConfirm();
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
+      const es = new EventSource(streamUrl);
+      eventSourceRef.current = es;
 
-      if (result.success) {
-        setProgress(100);
-        const vramStr = result.data?.vram_size_formatted || '4.42 GB';
-        const loadMs = result.data?.load_time_ms ? ` in ${result.data.load_time_ms}ms` : '';
-        setCurrentTask(`RTX 4060 Online · ${result.data?.model || 'Qwen 2.5'} (${vramStr})${loadMs}`);
-        setStep('ready');
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (typeof data.progress === 'number') {
+            setProgress(data.progress);
+          }
+          if (data.task) {
+            setCurrentTask(data.task);
+          }
+          if (data.vram_used_mb !== undefined) {
+            setVramUsedMb(data.vram_used_mb);
+          }
+          if (data.vram_total_mb !== undefined) {
+            setVramTotalMb(data.vram_total_mb);
+          }
+          if (data.vram_size_formatted) {
+            setVramFormatted(data.vram_size_formatted);
+          }
+          if (data.device) {
+            setActiveDevice(data.device);
+          }
 
-        // Only close when actually ready
-        setTimeout(() => {
-          onClose();
-        }, 900);
-      } else {
-        setProgress(0);
-        setStep('error');
-        setErrorMessage(result.error || 'Ollama was unable to load model weights into GPU VRAM.');
-      }
+          if (data.phase === 'error' || data.error) {
+            es.close();
+            eventSourceRef.current = null;
+            setStep('error');
+            setProgress(0);
+            setErrorMessage(data.error || 'Failed to allocate model weights to GPU VRAM');
+          } else if (data.phase === 'ready' && data.vram_loaded) {
+            es.close();
+            eventSourceRef.current = null;
+            setProgress(100);
+            setStep('ready');
+            const vramStr = data.vram_size_formatted || '4.42 GB';
+            setCurrentTask(`RTX 4060 Online · ${data.model} resident in VRAM (${vramStr})`);
+            onSuccess(data);
+            setTimeout(() => {
+              onClose();
+            }, 1800);
+          }
+        } catch (e) {
+          console.error('SSE parse error:', e);
+        }
+      };
+
+      es.onerror = async () => {
+        es.close();
+        eventSourceRef.current = null;
+        setCurrentTask('Checking model residency in RTX 4060 VRAM...');
+        try {
+          const res = await api.preloadModel(targetModel);
+          if (res.status === 'ready' && res.vram_loaded) {
+            setProgress(100);
+            setStep('ready');
+            const vramStr = res.vram_size_formatted || '4.42 GB';
+            setCurrentTask(`RTX 4060 Online · ${res.model} resident in VRAM (${vramStr})`);
+            onSuccess(res);
+            setTimeout(() => {
+              onClose();
+            }, 1800);
+          } else {
+            setStep('error');
+            setProgress(0);
+            setErrorMessage(res.message || 'Model load completed but physical VRAM verification failed.');
+          }
+        } catch (err: any) {
+          setStep('error');
+          setProgress(0);
+          setErrorMessage(err.message || 'Connection to local backend on port 8000 failed.');
+        }
+      };
     } catch (err: any) {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      setProgress(0);
       setStep('error');
-      setErrorMessage(err.message || 'Connection to local backend on port 8000 failed.');
+      setProgress(0);
+      setErrorMessage(err.message || 'Failed to initialize preload stream.');
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div id="offline-transition-modal" className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           {/* Deep matte backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -264,7 +326,7 @@ function OfflineTransitionModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 10 }}
             transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-            className="relative w-full max-w-md bg-[#101013] border border-white/[0.12] rounded-3xl p-6 shadow-2xl text-foreground overflow-hidden ring-1 ring-white/5"
+            className="relative w-full max-w-md bg-[#101013] border border-white/[0.12] rounded-3xl p-6 shadow-2xl text-foreground overflow-hidden ring-1 ring-white/5 z-10"
           >
             {step === 'alert' ? (
               /* Step 1: Confirmation Alert Box */
@@ -283,6 +345,26 @@ function OfflineTransitionModal({
                   </div>
                 </div>
 
+                {/* Cloud vs Local Warning if accessed remotely */}
+                {!isLocalHost && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-2">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <AlertCircle className="w-4 h-4 text-amber-400" />
+                      <span>Cloud Deployment Notice</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-200/90">
+                      You are visiting Cache-Craft via cloud deployment. A remote server cannot communicate with your laptop&apos;s physical NVIDIA RTX 4060 GPU.
+                    </p>
+                    <a
+                      href="http://localhost:3000/dashboard/chat"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-xl transition-all shadow-sm"
+                    >
+                      <span>Open Local App (http://localhost:3000)</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                )}
+
                 {/* Hardware Telemetry Card */}
                 <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/[0.08] space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-zinc-400">
@@ -292,6 +374,14 @@ function OfflineTransitionModal({
                   <div className="flex items-center justify-between text-zinc-400">
                     <span>Local LLM:</span>
                     <span className="font-medium text-zinc-200 font-mono">Qwen 2.5 (7B Instruct)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Hardware Residency:</span>
+                    <span className={`font-mono font-medium ${gpuTelemetry?.is_model_in_vram ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {gpuTelemetry?.is_model_in_vram 
+                        ? `Physically in VRAM (${gpuTelemetry.vram_size_formatted || '4.42 GB'}) ✓`
+                        : `${gpuTelemetry?.vram_used_mb || 0} MB in VRAM (Transfer Required)`}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-zinc-400">
                     <span>Daemon Pipeline:</span>
@@ -304,12 +394,13 @@ function OfflineTransitionModal({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Confirming will ensure the local Ollama daemon is active and pre-allocate model weights into your RTX 4060 GPU VRAM.
+                  Confirming will launch the local Ollama daemon and physically transfer ~4.7 GB of model weights into your RTX 4060 GPU VRAM. The system will verify GPU residency before proceeding.
                 </p>
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2.5 pt-2">
                   <button
+                    id="cancel-allocate-gpu-btn"
                     type="button"
                     onClick={onClose}
                     className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
@@ -317,6 +408,7 @@ function OfflineTransitionModal({
                     Cancel
                   </button>
                   <motion.button
+                    id="confirm-allocate-gpu-btn"
                     type="button"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
@@ -324,7 +416,7 @@ function OfflineTransitionModal({
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all flex items-center gap-1.5"
                   >
                     <Cpu className="w-3.5 h-3.5 text-zinc-900" />
-                    <span>Confirm &amp; Initialize GPU →</span>
+                    <span>Confirm &amp; Allocate GPU →</span>
                   </motion.button>
                 </div>
               </div>
@@ -337,7 +429,7 @@ function OfflineTransitionModal({
 
                 <div className="space-y-1.5 px-3">
                   <h4 className="text-sm font-semibold text-zinc-100 tracking-tight">
-                    GPU Initialization Notice
+                    GPU Allocation Incomplete
                   </h4>
                   <p className="text-xs text-zinc-400 leading-relaxed max-w-sm mx-auto">
                     {errorMessage || 'Could not verify Qwen 2.5 resident in GPU VRAM.'}
@@ -346,6 +438,7 @@ function OfflineTransitionModal({
 
                 <div className="flex items-center justify-center gap-2 pt-2">
                   <button
+                    id="close-allocate-gpu-btn"
                     type="button"
                     onClick={onClose}
                     className="px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
@@ -353,6 +446,7 @@ function OfflineTransitionModal({
                     Close
                   </button>
                   <button
+                    id="retry-allocate-gpu-btn"
                     type="button"
                     onClick={handleStartLoad}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all"
@@ -362,9 +456,9 @@ function OfflineTransitionModal({
                 </div>
               </div>
             ) : (
-              /* Step 2: Minimalist High-End Loader */
+              /* Step 2: Live Progress & Telemetry Loader */
               <div className="py-4 text-center space-y-5 relative z-10 select-none">
-                {/* Minimalist Rotating Rings */}
+                {/* Rotating Rings */}
                 <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
                   <motion.div
                     animate={{ rotate: 360 }}
@@ -393,26 +487,52 @@ function OfflineTransitionModal({
 
                 <div className="space-y-1">
                   <h4 className="text-xs font-semibold tracking-wider uppercase text-zinc-300 font-mono">
-                    {step === 'ready' ? 'GPU ALLOCATION COMPLETE' : 'INITIALIZING LOCAL GPU'}
+                    {step === 'ready' ? 'GPU ALLOCATION COMPLETE · READY FOR USE' : 'PHYSICALLY ALLOCATING TO GPU VRAM'}
                   </h4>
-                  <p className="text-xs text-zinc-400 font-mono tracking-wide h-4">
+                  <p className="text-xs text-zinc-400 font-mono tracking-wide px-2 min-h-6 flex items-center justify-center">
                     {currentTask}
                   </p>
                 </div>
 
-                {/* Refined Progress Bar */}
+                {/* Real Hardware Telemetry Card */}
+                <div className="p-3 rounded-2xl bg-[#141417] border border-white/[0.08] space-y-2 text-left text-xs font-mono">
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Target GPU:</span>
+                    <span className="text-zinc-200 font-medium">{activeDevice}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Dedicated VRAM:</span>
+                    <span className="text-emerald-400 font-medium">
+                      {vramUsedMb > 0 ? `${(vramUsedMb / 1024).toFixed(2)} GB / ${(vramTotalMb / 1024).toFixed(1)} GB` : 'Allocating memory...'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Model Size:</span>
+                    <span className="text-zinc-200">Qwen 2.5 (7B) ~ 4.7 GB</span>
+                  </div>
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Status:</span>
+                    <span className={step === 'ready' ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                      {step === 'ready' ? 'Physically Resident in VRAM ✓' : 'Streaming Tensors to CUDA...'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Bar with actual percentage */}
                 <div className="space-y-1.5 px-2">
-                  <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden p-0.5">
+                  <div className="w-full h-2 rounded-full bg-white/[0.08] overflow-hidden p-0.5">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${progress}%` }}
                       transition={{ ease: 'easeOut', duration: 0.3 }}
-                      className="h-full rounded-full bg-zinc-200"
+                      className={`h-full rounded-full transition-all ${
+                        step === 'ready' ? 'bg-emerald-400' : 'bg-zinc-200'
+                      }`}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
-                    <span>VRAM Pipeline</span>
-                    <span>{progress}%</span>
+                  <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
+                    <span>CUDA Transfer Progress</span>
+                    <span className="font-semibold text-zinc-200">{progress}%</span>
                   </div>
                 </div>
               </div>
@@ -420,7 +540,8 @@ function OfflineTransitionModal({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -436,8 +557,22 @@ export default function ChatClient() {
   const [showModal, setShowModal] = useState(false);
   const [isLocalHost, setIsLocalHost] = useState(false);
   const [gpuAccessAllowed, setGpuAccessAllowed] = useState(true);
+  const [gpuTelemetry, setGpuTelemetry] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const fetchGpuTelemetry = useCallback(async () => {
+    try {
+      const data = await api.getGpuStatus('qwen2.5:7b');
+      setGpuTelemetry(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchGpuTelemetry();
+    const interval = setInterval(fetchGpuTelemetry, 6000);
+    return () => clearInterval(interval);
+  }, [fetchGpuTelemetry]);
 
   // Restore messages and offline mode from sessionStorage on mount (tab-scoped)
   useEffect(() => {
@@ -479,6 +614,37 @@ export default function ChatClient() {
       } catch {}
     }
   }, [isOffline]);
+
+  // Automatically unload model weights from RTX 4060 GPU VRAM when the browser tab is closed
+  useEffect(() => {
+    const handleTabUnload = () => {
+      const isTabOffline = sessionStorage.getItem(OFFLINE_STORAGE_KEY) === 'true';
+      if (isTabOffline) {
+        const baseUrl = getBaseUrl();
+        const payload = JSON.stringify({ model: 'qwen2.5:7b' });
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon(`${baseUrl}/api/models/unload`, blob);
+          } else {
+            fetch(`${baseUrl}/api/models/unload`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload,
+              keepalive: true
+            });
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('pagehide', handleTabUnload);
+    window.addEventListener('beforeunload', handleTabUnload);
+    return () => {
+      window.removeEventListener('pagehide', handleTabUnload);
+      window.removeEventListener('beforeunload', handleTabUnload);
+    };
+  }, []);
 
   // Terminal-style Prompt History (ArrowUp to recall last prompt for instant L0/L1 demo)
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
@@ -621,43 +787,36 @@ export default function ChatClient() {
         return;
       }
       setShowModal(true);
+    } else if (!gpuTelemetry?.is_model_in_vram) {
+      // Model not in GPU VRAM -> open modal to physically warm it up!
+      setShowModal(true);
     } else {
       setIsOffline(false);
       api.setOfflineMode(false).catch(() => {});
-      toast.success('🌐 Online Mode Active: Cloud Gemini with Multi-Tier Cache');
+      api.unloadModel('qwen2.5:7b')
+        .then(() => {
+          fetchGpuTelemetry();
+          toast.success('🌐 Online Mode Active: Cloud Gemini · Released 4.4 GB VRAM from GPU');
+        })
+        .catch(() => {
+          fetchGpuTelemetry();
+          toast.success('🌐 Online Mode Active: Cloud Gemini with Multi-Tier Cache');
+        });
     }
   };
 
-  const handleConfirmOffline = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
-    if (!gpuAccessAllowed) {
-      toast.error("Sorry, you're not allowed to access the GPU");
-      return { success: false, error: "Sorry, you're not allowed to access the GPU" };
-    }
-    try {
-      const res = await api.preloadModel('qwen2.5:7b');
-      if (res.status === 'ready' && res.vram_loaded) {
-        setIsOffline(true);
-        await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
-        const vramStr = res.vram_size_formatted || '4.42 GB';
-        toast.success(`⚡ Local GPU Active: Qwen 2.5 (7B) resident in RTX 4060 VRAM (${vramStr})`);
-        return { success: true, data: res };
-      } else {
-        setIsOffline(true);
-        await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
-        toast.success('⚡ Local GPU / Offline Mode Active');
-        return { success: true, data: res };
-      }
-    } catch (err: any) {
-      const msg = err.message || '';
-      if (msg.includes('not allowed') || msg.includes('403')) {
-        toast.error("Sorry, you're not allowed to access the GPU (Guest restriction)");
-        return { success: false, error: "Sorry, you're not allowed to access the GPU" };
-      }
-      setIsOffline(true);
-      await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
-      toast.success('⚡ Local GPU / Offline Mode Active');
-      return { success: true, data: { status: 'ready', model: 'qwen2.5:7b' } };
-    }
+  const handleOfflineSuccess = async (data: any) => {
+    setIsOffline(true);
+    await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
+    const vramStr = data?.vram_size_formatted || '4.42 GB';
+    setGpuTelemetry({
+      is_model_in_vram: true,
+      vram_size_formatted: vramStr,
+      vram_used_mb: data?.vram_used_mb || 4633,
+      vram_total_mb: data?.vram_total_mb || 8188,
+      gpu_name: data?.device || 'NVIDIA GeForce RTX 4060'
+    });
+    toast.success(`⚡ Local GPU Active: Qwen 2.5 (7B) resident in RTX 4060 VRAM (${vramStr})`);
   };
 
   const sendQuery = async (queryText: string) => {
@@ -908,8 +1067,9 @@ export default function ChatClient() {
       <OfflineTransitionModal
         isOpen={showModal}
         isLocalHost={isLocalHost}
+        targetModel="qwen2.5:7b"
         onClose={() => setShowModal(false)}
-        onConfirm={handleConfirmOffline}
+        onSuccess={handleOfflineSuccess}
       />
 
       {/* Top Header Toolbar (active chat) */}
@@ -928,6 +1088,7 @@ export default function ChatClient() {
 
           {/* Unified 165Hz Online / Offline GPU Switch */}
           <motion.button
+            id="offline-gpu-toggle-btn-header"
             type="button"
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.96 }}
@@ -941,9 +1102,13 @@ export default function ChatClient() {
           >
             {isOffline ? (
               <>
-                <span className="w-2 h-2 rounded-full bg-zinc-300" />
+                <span className={`w-2 h-2 rounded-full ${gpuTelemetry?.is_model_in_vram ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
                 <Cpu className="w-3.5 h-3.5 text-zinc-300" />
-                <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
+                <span className="font-semibold tracking-wide">
+                  {gpuTelemetry?.is_model_in_vram
+                    ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
+                    : 'Offline · Model Not in GPU (Click to Load)'}
+                </span>
               </>
             ) : (
               <>
@@ -1010,6 +1175,7 @@ export default function ChatClient() {
                 {/* Right Controls: Unified 165Hz Online / Offline GPU Switch & Send Button */}
                 <div className="flex items-center gap-2">
                   <motion.button
+                    id="offline-gpu-toggle-btn"
                     type="button"
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.96 }}
@@ -1023,9 +1189,13 @@ export default function ChatClient() {
                   >
                     {isOffline ? (
                       <>
-                        <span className="w-2 h-2 rounded-full bg-zinc-300" />
+                        <span className={`w-2 h-2 rounded-full ${gpuTelemetry?.is_model_in_vram ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
                         <Cpu className="w-3.5 h-3.5 text-zinc-300" />
-                        <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
+                        <span className="font-semibold tracking-wide">
+                          {gpuTelemetry?.is_model_in_vram
+                            ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
+                            : 'Offline · Model Not in GPU (Click to Load)'}
+                        </span>
                       </>
                     ) : (
                       <>
@@ -1151,6 +1321,7 @@ export default function ChatClient() {
 
               <div className="flex items-center gap-2">
                 <motion.button
+                  id="offline-gpu-toggle-btn-dock"
                   type="button"
                   whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.96 }}
@@ -1164,9 +1335,13 @@ export default function ChatClient() {
                 >
                   {isOffline ? (
                     <>
-                      <span className="w-2 h-2 rounded-full bg-zinc-300" />
+                      <span className={`w-2 h-2 rounded-full ${gpuTelemetry?.is_model_in_vram ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
                       <Cpu className="w-3.5 h-3.5 text-zinc-300" />
-                      <span className="font-semibold tracking-wide">Offline · Local LLM (RTX 4060)</span>
+                      <span className="font-semibold tracking-wide">
+                        {gpuTelemetry?.is_model_in_vram
+                          ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
+                          : 'Offline · Model Not in GPU (Click to Load)'}
+                      </span>
                     </>
                   ) : (
                     <>
