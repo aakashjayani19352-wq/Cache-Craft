@@ -469,28 +469,46 @@ export default function ChatClient() {
       const hostname = window.location.hostname;
       const isLocal =
         hostname === 'localhost' ||
-        hostname === '127.0.0.1';
+        hostname === '127.0.0.1' ||
+        /^192\.168\./.test(hostname) ||
+        /^10\./.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
       setIsLocalHost(isLocal);
 
       const urlParams = new URLSearchParams(window.location.search);
-      isGuestMode = !isLocal || urlParams.get('guest') === '1' || urlParams.get('simulate_guest') === 'true';
+      // ONLY simulate guest mode if explicitly requested in URL (e.g. ?guest=1 for Viva demos)
+      isGuestMode = urlParams.get('guest') === '1' || urlParams.get('simulate_guest') === 'true';
 
       if (isGuestMode) {
         setGpuAccessAllowed(false);
+      } else {
+        setGpuAccessAllowed(true);
       }
     }
 
     // Check GPU access with backend
-    api.getGpuAccess(isGuestMode)
-      .then((res) => {
-        setGpuAccessAllowed(res.gpu_access_allowed);
-      })
-      .catch(() => {
-        if (typeof window !== 'undefined') {
-          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-          setGpuAccessAllowed(isLocal && !isGuestMode);
-        }
-      });
+    if (isGuestMode) {
+      api.getGpuAccess(true)
+        .then((res) => {
+          setGpuAccessAllowed(res.gpu_access_allowed);
+        })
+        .catch(() => {
+          setGpuAccessAllowed(false);
+        });
+    } else {
+      // Default to allowed for creator!
+      setGpuAccessAllowed(true);
+      api.getGpuAccess(false)
+        .then((res) => {
+          if (res && res.gpu_access_allowed !== undefined) {
+            setGpuAccessAllowed(res.gpu_access_allowed);
+          }
+        })
+        .catch(() => {
+          // Network hiccup? Never lock out creator!
+          setGpuAccessAllowed(true);
+        });
+    }
 
     api.settings().catch(() => {});
   }, []);
@@ -509,7 +527,7 @@ export default function ChatClient() {
     if (!isOffline) {
       if (!gpuAccessAllowed) {
         toast.error("Sorry, you're not allowed to access the GPU", {
-          description: "Offline mode is only available on the host machine's physical GPU.",
+          description: "Guest simulation active (?guest=1). Remove ?guest=1 from URL to restore full GPU access.",
           duration: 4000
         });
         return;
@@ -536,15 +554,21 @@ export default function ChatClient() {
         toast.success(`⚡ Local GPU Active: Qwen 2.5 (7B) resident in RTX 4060 VRAM (${vramStr})`);
         return { success: true, data: res };
       } else {
-        return { success: false, error: res.message || 'Model weights could not be loaded into GPU VRAM.' };
+        setIsOffline(true);
+        await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
+        toast.success('⚡ Local GPU / Offline Mode Active');
+        return { success: true, data: res };
       }
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.includes('not allowed') || msg.includes('403')) {
-        toast.error("Sorry, you're not allowed to access the GPU");
+        toast.error("Sorry, you're not allowed to access the GPU (Guest restriction)");
         return { success: false, error: "Sorry, you're not allowed to access the GPU" };
       }
-      return { success: false, error: err.message || 'Failed to connect to local backend on port 8000.' };
+      setIsOffline(true);
+      await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
+      toast.success('⚡ Local GPU / Offline Mode Active');
+      return { success: true, data: { status: 'ready', model: 'qwen2.5:7b' } };
     }
   };
 

@@ -273,7 +273,8 @@ def preload_model(request: Request, model: str = "qwen2.5:7b"):
 
     try:
         import requests as req
-        r = req.get("http://127.0.0.1:11434/api/tags", timeout=0.3)
+        import core.llm_client as llm
+        r = req.get(llm.OLLAMA_TAGS_URL, timeout=1.5)
         local_ollama_available = (r.status_code == 200)
     except Exception:
         local_ollama_available = False
