@@ -22,7 +22,7 @@ export function getBaseUrl(): string {
     // fallback to relative path so same-origin proxy handles /api without Mixed Content errors
     return '';
   }
-  return (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
+  return (process.env.NEXT_PUBLIC_API_URL ?? 'https://cache-craft-production.up.railway.app').replace(/\/+$/, '');
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

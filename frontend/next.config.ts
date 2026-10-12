@@ -5,7 +5,7 @@ import { withSentryConfig } from '@sentry/nextjs';
 const baseConfig: NextConfig = {
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://cache-craft-production.up.railway.app';
     if (backendUrl && !backendUrl.includes('localhost')) {
       return [
         {
