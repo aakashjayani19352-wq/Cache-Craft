@@ -102,13 +102,21 @@ export default function Header() {
               Auto-Offline
             </span>
           )}
-          {health.offline_mode && (
+          {health.offline_mode ? (
             <span
-              className='flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] border border-white/[0.12] text-zinc-200 font-mono'
-              title='Offline Mode: 100% Local Inference'
+              className='flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono'
+              title='Routing Mode: 100% Local Inference on RTX 4060 GPU'
             >
-              <span className='w-1.5 h-1.5 rounded-full bg-zinc-300' />
-              Offline
+              <span className='w-1.5 h-1.5 rounded-full bg-emerald-400' />
+              Local GPU Mode
+            </span>
+          ) : (
+            <span
+              className='flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 font-mono'
+              title='Routing Mode: Cloud LLM Active'
+            >
+              <span className='w-1.5 h-1.5 rounded-full bg-sky-400' />
+              Online Cloud
             </span>
           )}
           <StatusPill label='pgvector' status={health.db} />
