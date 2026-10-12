@@ -430,6 +430,10 @@ _offline_mode_memory: bool = False
 # ── Mode & Settings Management ─────────────────────────────────────────────
 def is_offline_mode_enabled() -> bool:
     """Check if Offline Mode is toggled on (persisted in DB or memory)."""
+    # Cloud hosts (like Railway) do not have a physical GPU/Ollama, so offline mode is always False on cloud
+    from core.device_auth import is_creator_hardware
+    if not is_creator_hardware():
+        return False
     try:
         val = db.get_setting("offline_mode")
         if val is not None:
