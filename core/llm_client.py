@@ -521,6 +521,7 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
     system_instruction_text = (
         "You are Cache-Craft AI, a fast, helpful, and highly capable assistant. "
         "When greeted (e.g. 'hello', 'hi', 'hey'), respond with a friendly greeting and ask how you can help. Never repeat or continue a previous conversation topic when greeted. "
+        "Provide direct, high-density, authoritative answers without conversational filler or redundant preambles. "
         "Always write in clean, clear Markdown and natural readable prose. "
         "Never wrap basic scientific terms, variables, numbers, or chemical formulas in raw LaTeX code ($...$). "
         "Use clean Unicode characters directly in the text (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds, 1s² 2s² 2p²). "
@@ -531,7 +532,11 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
         "systemInstruction": {
             "parts": [{"text": system_instruction_text}]
         },
-        "contents": contents
+        "contents": contents,
+        "generationConfig": {
+            "maxOutputTokens": 800,
+            "temperature": 0.3
+        }
     }
     last_err = ""
 
@@ -549,7 +554,13 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
             if response.status_code == 400 and "systemInstruction" in payload:
                 response = requests.post(
                     url,
-                    json={"contents": contents},
+                    json={
+                        "contents": contents,
+                        "generationConfig": {
+                            "maxOutputTokens": 800,
+                            "temperature": 0.3
+                        }
+                    },
                     headers={"Content-Type": "application/json"},
                     timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
                 )
@@ -599,6 +610,7 @@ def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") 
             "content": (
                 "You are Cache-Craft AI, a fast, helpful, and highly capable assistant. "
                 "When greeted (e.g. 'hello', 'hi', 'hey'), respond with a friendly greeting and ask how you can help. Never repeat or continue a previous conversation topic when greeted. "
+                "Provide direct, high-density, authoritative answers without conversational filler or redundant preambles. "
                 "Always write in clean, clear Markdown and natural readable prose. "
                 "Never wrap basic scientific terms, variables, numbers, or chemical formulas in raw LaTeX code ($...$). "
                 "Use clean Unicode characters directly in the text (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds, 1s² 2s² 2p²). "
@@ -629,7 +641,11 @@ def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") 
             json={
                 "model": model,
                 "messages": formatted_messages,
-                "stream": False
+                "stream": False,
+                "options": {
+                    "num_predict": 800,
+                    "temperature": 0.3
+                }
             },
             timeout=OLLAMA_TIMEOUT_S
         )
