@@ -20,9 +20,34 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api, getBaseUrl } from '@/lib/api';
+
+/**
+ * Normalizes math/scientific LaTeX expressions so remark-math and rehype-katex
+ * render them smoothly without breaking on inline brackets or display equations.
+ */
+function preprocessMathMarkdown(content: string): string {
+  if (!content) return '';
+
+  let processed = content;
+
+  // Convert LaTeX bracket delimiters \[ ... \] -> $$ ... $$
+  processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (_, eq) => `\n\n$$\n${eq.trim()}\n$$\n\n`);
+
+  // Convert LaTeX inline delimiters \( ... \) -> $ ... $
+  processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_, eq) => `$${eq.trim()}$`);
+
+  // Ensure display math ($$...$$) has line breaks around it for remark-math parsing
+  processed = processed.replace(/([^\n])\s*\$\$([\s\S]+?)\$\$/g, '$1\n\n$$$2$$');
+  processed = processed.replace(/\$\$([\s\S]+?)\$\$\s*([^\n])/g, '$$$1$$\n\n$2');
+
+  return processed;
+}
 
 // Cache-Craft's signature Minimalist Titanium Neural Emblem (Subtle, Mature, Sophisticated)
 function CacheCraftEmblem({ className = "w-11 h-11" }: { className?: string }) {
@@ -1005,8 +1030,11 @@ export default function ChatClient() {
                         </div>
 
                         <div className="prose prose-sm dark:prose-invert max-w-none text-zinc-200 leading-relaxed font-normal">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+                          >
+                            {preprocessMathMarkdown(msg.content)}
                           </ReactMarkdown>
                         </div>
 

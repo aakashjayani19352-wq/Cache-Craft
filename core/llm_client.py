@@ -361,7 +361,20 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
         if fallback_name not in candidate_models:
             candidate_models.append(fallback_name)
 
-    payload = {"contents": contents}
+    system_instruction_text = (
+        "You are Cache-Craft AI, an intelligent, high-performance assistant. "
+        "Provide direct, well-structured, and elegant answers. "
+        "Format chemical formulas, scientific notation, and equations cleanly. "
+        "Prefer clean Markdown and Unicode typography (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds) for readability. "
+        "When using mathematical formulas, format display equations clearly using $$ ... $$ on separate lines."
+    )
+
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": system_instruction_text}]
+        },
+        "contents": contents
+    }
     last_err = ""
 
     for target_model in candidate_models:
@@ -373,6 +386,15 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
                 headers={"Content-Type": "application/json"},
                 timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
             )
+
+            # Fallback if specific model does not support systemInstruction in v1beta
+            if response.status_code == 400 and "systemInstruction" in payload:
+                response = requests.post(
+                    url,
+                    json={"contents": contents},
+                    headers={"Content-Type": "application/json"},
+                    timeout=(GEMINI_CONNECT_TIMEOUT_S, GEMINI_READ_TIMEOUT_S)
+                )
 
             if response.status_code == 200:
                 data = response.json()
@@ -414,6 +436,15 @@ def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") 
         ensure_ollama_running()
 
         formatted_messages = []
+        system_prompt = {
+            "role": "system",
+            "content": (
+                "You are Cache-Craft AI. Provide direct, well-structured answers. "
+                "Format chemical formulas and scientific terms cleanly using standard Markdown and Unicode (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds). "
+                "When formatting mathematical formulas, use $$ ... $$ on separate lines."
+            )
+        }
+
         if messages and len(messages) > 0:
             for m in messages:
                 role = m.get("role", "user")
@@ -428,6 +459,9 @@ def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") 
                 formatted_messages = formatted_messages[-20:]
         else:
             formatted_messages = [{"role": "user", "content": question}]
+
+        if not any(m.get("role") == "system" for m in formatted_messages):
+            formatted_messages.insert(0, system_prompt)
 
         response = requests.post(
             OLLAMA_CHAT_URL,
