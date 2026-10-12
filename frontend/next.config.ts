@@ -16,6 +16,15 @@ const baseConfig: NextConfig = {
     }
     return [];
   },
+  async redirects() {
+    return [
+      {
+        source: '/dashboard/explorer',
+        destination: '/dashboard/cache',
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
