@@ -23,8 +23,8 @@ OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE}/api/chat"
 OLLAMA_TAGS_URL = f"{OLLAMA_BASE}/api/tags"
 OLLAMA_TIMEOUT_S = 45          # Allows cold 7B model loading into GPU VRAM
-GEMINI_CONNECT_TIMEOUT_S = 12.0  # Robust connect timeout for realistic networks
-GEMINI_READ_TIMEOUT_S = 30.0    # Allows ample generation read window for cloud LLM requests
+GEMINI_CONNECT_TIMEOUT_S = 4.0   # Fast connect timeout so unavailable endpoints fail over quickly
+GEMINI_READ_TIMEOUT_S = 18.0     # Generous read timeout for full response generation
 
 # Gemini is the default cloud model
 DEFAULT_MODEL = "gemini-flash-latest"
@@ -514,7 +514,7 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
 
     clean_req_model = model.replace("models/", "")
     candidate_models = [clean_req_model]
-    for fallback_name in ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemma-4-26b-a4b-it"]:
+    for fallback_name in ["gemini-flash-latest", "gemma-4-26b-a4b-it", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"]:
         if fallback_name not in candidate_models:
             candidate_models.append(fallback_name)
 
@@ -568,9 +568,9 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
                         }
                 return {"answer": None, "model": target_model, "source": "gemini_error", "error": "Empty response from Gemini API"}
 
-            # If 503 or 404, try next model in candidate chain
+            # If 503 (high demand), 429 (quota), or 404 (not found), try next model in candidate chain
             last_err = f"HTTP {response.status_code}: {response.text[:150]}"
-            if response.status_code in (404, 503):
+            if response.status_code in (404, 503, 429):
                 continue
             else:
                 break
