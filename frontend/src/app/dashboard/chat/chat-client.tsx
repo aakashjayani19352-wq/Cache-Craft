@@ -874,8 +874,10 @@ export default function ChatClient() {
       const data = await res.json();
       let responseContent = data.response || 'No response returned.';
 
-      if (responseContent.includes('Could not connect to Ollama') || responseContent.includes('port 11434 unreachable')) {
+      if (isOffline && (responseContent.includes('Could not connect to Ollama') || responseContent.includes('port 11434 unreachable'))) {
         responseContent = `⚡ **Local LLM Notice**:\n\nCould not reach local Ollama on port 11434. Please ensure Ollama is running (\`ollama serve\` or launch Ollama from your Start menu).`;
+      } else if (!isOffline && (responseContent.includes('429') || responseContent.toLowerCase().includes('quota'))) {
+        responseContent = `⚠️ **Cloud Gemini Notice (Rate Limit / Quota Exceeded)**:\n\nGoogle Gemini returned **HTTP 429 (Rate Limit / Quota Exceeded)** on your current API key.\n\n**Quick Solutions:**\n• **Update API Key**: Generate a fresh free key at [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to your Railway environment variables (\`GEMINI_API_KEY\`).\n• **Use Local RTX 4060 GPU**: Open Cache-Craft locally on your laptop at **http://localhost:3000** and use **Offline Mode** to run inference 100% free with zero API limits.`;
       }
 
       const assistantMsg: Message = {

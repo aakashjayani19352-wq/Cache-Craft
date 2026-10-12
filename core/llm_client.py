@@ -819,17 +819,23 @@ def generate_answer(
         res["fallback_triggered"] = False
         return res
 
-    # Weak network or cloud error! Trip circuit and switch IMMEDIATELY to local LLM
-    print(f"[LLM] Cloud failed: {res['error']}. Switching immediately to local {local_fallback_model}...")
-    record_cloud_failure(res["error"])
+    # Weak network or cloud error! Trip circuit and switch to local LLM if host supports it
+    print(f"[LLM] Cloud failed: {res['error']}.")
 
-    fallback = _call_ollama(question, messages=messages, model=local_fallback_model)
-    if fallback["error"] is None:
-        fallback["offline_mode"] = True
-        fallback["fallback_triggered"] = True
-        fallback["fallback_reason"] = f"Switched from cloud due to weak network: {res['error']}"
-        fallback["note"] = f"Network weak ({res['error']}). Switched immediately to local {local_fallback_model}."
-        return fallback
+    has_local_ollama = shutil.which("ollama") is not None or (sys.platform == "win32" and os.path.exists(os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe")))
 
-    # Both tiers failed
-    return _make_error_response(selected_model, f"Cloud: {res['error']} | Local: {fallback['error']}")
+    if has_local_ollama:
+        print(f"[LLM] Switching to local {local_fallback_model}...")
+        record_cloud_failure(res["error"])
+        fallback = _call_ollama(question, messages=messages, model=local_fallback_model)
+        if fallback["error"] is None:
+            fallback["offline_mode"] = True
+            fallback["fallback_triggered"] = True
+            fallback["fallback_reason"] = f"Switched from cloud due to weak network: {res['error']}"
+            fallback["note"] = f"Network weak ({res['error']}). Switched immediately to local {local_fallback_model}."
+            return fallback
+
+    if "429" in str(res["error"]):
+        return _make_error_response(selected_model, "Google Gemini API quota exceeded (HTTP 429). Please check or update your GEMINI_API_KEY.")
+
+    return _make_error_response(selected_model, f"Cloud: {res['error']}")
