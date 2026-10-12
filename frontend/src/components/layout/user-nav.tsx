@@ -25,15 +25,18 @@ export function UserNav() {
         <DropdownMenuGroup>
           <DropdownMenuLabel className='font-normal'>
             <div className='flex flex-col space-y-1'>
-              <p className='text-sm leading-none font-medium'>Cache-Craft</p>
-              <p className='text-muted-foreground text-xs leading-none'>localhost:8000</p>
+              <p className='text-sm leading-none font-medium'>Cache-Craft v2.0</p>
+              <p className='text-muted-foreground text-xs leading-none'>Autonomous Semantic RAG Router</p>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem render={<Link href='/dashboard/settings' />}>
-            Settings
+            Cluster Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<a href='https://github.com/aakashjayani19352-wq/Cache-Craft' target='_blank' rel='noopener noreferrer' />}>
+            GitHub Repository
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

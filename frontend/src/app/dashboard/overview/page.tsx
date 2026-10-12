@@ -16,6 +16,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getBaseUrl } from '@/lib/api';
 
 interface Metrics {
   total_queries: number;
@@ -36,7 +37,7 @@ export default function OverviewPage() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = getBaseUrl();
         const res = await fetch(`${apiUrl}/api/metrics`);
         if (!res.ok) throw new Error('Network response was not ok');
         const data = await res.json();

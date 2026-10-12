@@ -1,10 +1,12 @@
 {
-  "name": "next-shadcn-dashboard-starter",
-  "version": "1.0.0",
+  "name": "cache-craft-frontend",
+  "version": "2.0.0",
+  "description": "Cache-Craft Cupertino Glassmorphism Next.js 15 Dashboard & Chat Playground",
   "private": true,
   "author": {
-    "name": "Kiran",
-    "url": "https://github.com/Kiranism"
+    "name": "Aakash Jayani",
+    "email": "23SE02IT140@ppsu.ac.in",
+    "url": "https://github.com/aakashjayani19352-wq"
   },
   "scripts": {
     "dev": "next dev",

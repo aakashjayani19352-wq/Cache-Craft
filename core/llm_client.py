@@ -19,8 +19,9 @@ import core.database as db
 
 load_dotenv()
 
-OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
-OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
+OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_CHAT_URL = f"{OLLAMA_BASE}/api/chat"
+OLLAMA_TAGS_URL = f"{OLLAMA_BASE}/api/tags"
 OLLAMA_TIMEOUT_S = 45          # Allows cold 7B model loading into GPU VRAM
 GEMINI_CONNECT_TIMEOUT_S = 12.0  # Robust connect timeout for realistic networks
 GEMINI_READ_TIMEOUT_S = 30.0    # Allows ample generation read window for cloud LLM requests

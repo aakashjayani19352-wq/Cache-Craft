@@ -167,6 +167,7 @@ class FeedbackRequest(BaseModel):
 # ============================================================
 
 @app.get("/", tags=["Health"])
+@app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "Cache-Craft API", "version": "2.0.0"}
 
@@ -192,7 +193,7 @@ def detailed_health():
     llm_ok = False
     llm_model = None
     try:
-        r = req.get("http://127.0.0.1:11434/api/tags", timeout=0.5)
+        r = req.get(llm.OLLAMA_TAGS_URL, timeout=0.5)
         if r.status_code == 200:
             llm_ok = True
             models = r.json().get("models", [])
