@@ -357,7 +357,7 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
 
     clean_req_model = model.replace("models/", "")
     candidate_models = [clean_req_model]
-    for fallback_name in ["gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"]:
+    for fallback_name in ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemma-4-26b-a4b-it"]:
         if fallback_name not in candidate_models:
             candidate_models.append(fallback_name)
 
