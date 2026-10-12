@@ -362,11 +362,12 @@ def _call_gemini(question: str, messages: list = None, model: str = "gemini-flas
             candidate_models.append(fallback_name)
 
     system_instruction_text = (
-        "You are Cache-Craft AI, an intelligent, high-performance assistant. "
-        "Provide direct, well-structured, and elegant answers. "
-        "Format chemical formulas, scientific notation, and equations cleanly. "
-        "Prefer clean Markdown and Unicode typography (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds) for readability. "
-        "When using mathematical formulas, format display equations clearly using $$ ... $$ on separate lines."
+        "You are Cache-Craft AI, a fast, helpful, and highly capable assistant. "
+        "When greeted (e.g. 'hello', 'hi', 'hey'), respond with a friendly greeting and ask how you can help. Never repeat or continue a previous conversation topic when greeted. "
+        "Always write in clean, clear Markdown and natural readable prose. "
+        "Never wrap basic scientific terms, variables, numbers, or chemical formulas in raw LaTeX code ($...$). "
+        "Use clean Unicode characters directly in the text (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds, 1s² 2s² 2p²). "
+        "Only use display math blocks ($$ ... $$ on separate lines) when writing complex multi-line mathematical proofs or equations."
     )
 
     payload = {
@@ -439,9 +440,12 @@ def _call_ollama(question: str, messages: list = None, model: str = "llama3.2") 
         system_prompt = {
             "role": "system",
             "content": (
-                "You are Cache-Craft AI. Provide direct, well-structured answers. "
-                "Format chemical formulas and scientific terms cleanly using standard Markdown and Unicode (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds). "
-                "When formatting mathematical formulas, use $$ ... $$ on separate lines."
+                "You are Cache-Craft AI, a fast, helpful, and highly capable assistant. "
+                "When greeted (e.g. 'hello', 'hi', 'hey'), respond with a friendly greeting and ask how you can help. Never repeat or continue a previous conversation topic when greeted. "
+                "Always write in clean, clear Markdown and natural readable prose. "
+                "Never wrap basic scientific terms, variables, numbers, or chemical formulas in raw LaTeX code ($...$). "
+                "Use clean Unicode characters directly in the text (e.g. sp³, CH₄, H₂O, 109.5°, σ bonds, π bonds, 1s² 2s² 2p²). "
+                "Only use display math blocks ($$ ... $$ on separate lines) when writing complex multi-line mathematical proofs or equations."
             )
         }
 

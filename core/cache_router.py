@@ -77,22 +77,23 @@ def _redis_delete(key: str):
         redis_client.delete(key)
     except Exception as e:
         _last_redis_failure_time = time.time()
-        print(f"[CacheRouter] Redis DEL failed (non-fatal): {e}")
+TRIVIAL_GREETINGS = {
+    "hello", "hi", "hey", "yo", "sup", "howdy", "hola", "greetings",
+    "good morning", "good afternoon", "good evening", "how are you",
+    "who are you", "what can you do", "help", "thanks", "thank you",
+    "thx", "ok", "okay", "bye", "goodbye", "cool", "nice", "great"
+}
 
 
 def is_followup_query(query: str) -> bool:
     """Determine whether a query is a conversational follow-up depending on prior context."""
     q = query.strip().lower()
-    words = q.split()
-    if len(words) <= 3:
-        return True
+    if not q or q in TRIVIAL_GREETINGS:
+        return False
 
-    followup_pronouns = {
-        "it", "this", "that", "them", "those", "these", "above", "previous",
-        "earlier", "both", "latter", "former"
-    }
-    if any(p in words for p in followup_pronouns):
-        return True
+    words = q.split()
+    if not words:
+        return False
 
     followup_starters = (
         "summarize", "summurize", "tldr", "tl;dr", "explain more", "tell me more",
@@ -104,7 +105,23 @@ def is_followup_query(query: str) -> bool:
     if any(q.startswith(starter) for starter in followup_starters):
         return True
 
-    return False
+    # Standalone question starters without referential pronouns are NOT follow-ups
+    independent_starters = (
+        "what is ", "what are ", "who is ", "where is ", "when did ",
+        "define ", "how does ", "how do ", "explain ", "describe "
+    )
+    is_standalone_starter = any(q.startswith(s) for s in independent_starters)
+
+    followup_pronouns = {
+        "it", "this", "that", "them", "those", "these", "its", "above", "previous",
+        "earlier", "both", "latter", "former"
+    }
+    has_pronoun = any(p in words for p in followup_pronouns)
+
+    if is_standalone_starter and not has_pronoun:
+        return False
+
+    return has_pronoun
 
 
 def _normalize_query(query: str) -> str:
@@ -159,21 +176,22 @@ class CacheRouter:
 
         # If conversational history is present, derive contextual key for follow-ups
         prior_user_query = None
-        if messages and len(messages) > 0:
+        is_greeting = query.lower() in TRIVIAL_GREETINGS
+
+        if not is_greeting and messages and len(messages) > 0:
             history_candidates = (
                 messages[:-1]
                 if (messages[-1].get("role") == "user" and messages[-1].get("content", "").strip() == query)
                 else messages
             )
-            trivial_greetings = {"hello", "hi", "hey", "yo", "sup", "greetings", "ciao", "caio"}
             for m in reversed(history_candidates):
                 if m.get("role") == "user":
                     candidate = m.get("content", "").strip()
-                    if candidate != query and candidate.lower() not in trivial_greetings:
+                    if candidate != query and candidate.lower() not in TRIVIAL_GREETINGS:
                         prior_user_query = candidate
                         break
 
-        # Only contextualize if it's a follow-up or referential query
+        # Only contextualize if it's genuinely a follow-up or referential query
         is_followup = bool(prior_user_query and is_followup_query(query))
         if is_followup:
             lookup_query = f"{prior_user_query} -> {query}"
@@ -249,6 +267,11 @@ class CacheRouter:
             best_sim = 0.0
             best_entry = None
             for h, item in self._memory_cache.items():
+                # Crucial: follow-up queries must only match cached follow-ups,
+                # and standalone queries must only match standalone cached queries.
+                item_is_followup = " -> " in item.get("query_text", "")
+                if is_followup != item_is_followup:
+                    continue
                 emb = item.get("embedding")
                 if emb is not None:
                     sim = float(self.embedder.similarity(query_embedding, emb))

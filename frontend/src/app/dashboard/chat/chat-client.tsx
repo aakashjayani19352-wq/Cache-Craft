@@ -27,9 +27,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { api, getBaseUrl } from '@/lib/api';
 
+const SUPERSCRIPTS: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+  '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+  'n': 'ⁿ', 'i': 'ⁱ', 'x': 'ˣ', 'y': 'ʸ'
+};
+
+const SUBSCRIPTS: Record<string, string> = {
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+  'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
+  'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
+  'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ',
+  'v': 'ᵥ', 'x': 'ₓ', 'y': 'ᵧ', 'z': 'ᵤ'
+};
+
 /**
- * Normalizes math/scientific LaTeX expressions so remark-math and rehype-katex
- * render them smoothly without breaking on inline brackets or display equations.
+ * Normalizes math/scientific LaTeX expressions into elegant, human-readable Unicode
+ * and prepares complex formulas for KaTeX rendering without ugly raw syntax.
  */
 function preprocessMathMarkdown(content: string): string {
   if (!content) return '';
@@ -42,7 +59,53 @@ function preprocessMathMarkdown(content: string): string {
   // Convert LaTeX inline delimiters \( ... \) -> $ ... $
   processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_, eq) => `$${eq.trim()}$`);
 
-  // Ensure display math ($$...$$) has line breaks around it for remark-math parsing
+  // Convert definition-style display equations (without complex calculus/matrices) to clean blockquotes
+  processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, eq) => {
+    if (/\\(frac|sum|int|sqrt|matrix|begin|prod)/.test(eq)) {
+      return `\n\n$$\n${eq.trim()}\n$$\n\n`;
+    }
+    const cleanEq = eq
+      .replace(/\\text\{([^}]+)\}/g, '$1')
+      .replace(/\\times/g, '×')
+      .replace(/\^?\s*\\circ/g, '°')
+      .replace(/\\sigma/g, 'σ')
+      .replace(/\\pi/g, 'π')
+      .replace(/\\\s+/g, ' ')
+      .replace(/\\/g, '')
+      .trim();
+    return `\n\n> **${cleanEq}**\n\n`;
+  });
+
+  // Convert inline math to clean typography
+  processed = processed.replace(/\$([^$]+?)\$/g, (match, inner) => {
+    if (/\\(frac|sum|int|sqrt|matrix|begin|prod)/.test(inner)) {
+      return match;
+    }
+    let s = inner;
+    s = s.replace(/\\text\{([^}]+)\}/g, '$1');
+    s = s.replace(/\\times/g, '×');
+    s = s.replace(/\^?\s*\\circ/g, '°');
+    s = s.replace(/\^°/g, '°');
+    s = s.replace(/\\sigma/g, 'σ');
+    s = s.replace(/\\pi/g, 'π');
+    s = s.replace(/\\alpha/g, 'α').replace(/\\beta/g, 'β').replace(/\\gamma/g, 'γ');
+    s = s.replace(/\\Delta/g, 'Δ').replace(/\\theta/g, 'θ').replace(/\\mu/g, 'μ');
+    s = s.replace(/\\approx/g, '≈').replace(/\\neq/g, '≠').replace(/\\leq?/g, '≤').replace(/\\geq?/g, '≥').replace(/\\pm/g, '±');
+    s = s.replace(/\\(?:rightarrow|to)/g, '→').replace(/\\leftarrow/g, '←').replace(/\\cdot/g, '·');
+    s = s.replace(/\\\s+/g, ' ');
+    // Superscripts
+    s = s.replace(/\^\{?([0-9nixy\+\-]+)\}?/g, (_: string, chars: string) =>
+      chars.split('').map((c: string) => SUPERSCRIPTS[c] || c).join('')
+    );
+    // Subscripts
+    s = s.replace(/_\{?([0-9a-z\+\-]+)\}?/g, (_: string, chars: string) =>
+      chars.split('').map((c: string) => SUBSCRIPTS[c] || c).join('')
+    );
+    s = s.replace(/\\/g, '').trim();
+    return s;
+  });
+
+  // Ensure any remaining KaTeX display math has line breaks around it
   processed = processed.replace(/([^\n])\s*\$\$([\s\S]+?)\$\$/g, '$1\n\n$$$2$$');
   processed = processed.replace(/\$\$([\s\S]+?)\$\$\s*([^\n])/g, '$$$1$$\n\n$2');
 
