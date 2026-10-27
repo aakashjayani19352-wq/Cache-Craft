@@ -818,7 +818,7 @@ export default function ChatClient() {
       /^10\./.test(hostname) ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
-    const apiUrl = getBaseUrl();
+    const apiUrl = isOffline ? getLocalBackendUrl() : getBaseUrl();
     const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.6-flash';
 
     try {
