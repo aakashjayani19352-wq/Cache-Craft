@@ -17,7 +17,7 @@ from pydantic import BaseModel, field_validator
 
 from core.cache_router import CacheRouter
 import core.database as db
-from core.device_auth import is_gpu_access_authorized, is_creator_hardware
+# device_auth imported for potential future use (currently open-access mode)
 
 app = FastAPI(
     title="Cache-Craft API",
@@ -224,22 +224,11 @@ def detailed_health():
 @app.post("/api/query", tags=["Query"])
 def query(request: QueryRequest, req: Request):
     """Main endpoint — 3-tier cache lookup with intelligent weak-network failover, offline mode & dynamic auto-routing."""
-    client_ip = req.client.host if req.client else "unknown"
-    simulate_guest = req.query_params.get("guest") == "1" or req.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-
-    # If an unauthorized guest/friend requests offline mode or local GPU models, gracefully fallback to online Cloud
-    force_offline = request.offline_mode
-    target_model = request.model
-    if force_offline or (target_model and "qwen" in target_model):
-        if simulate_guest or not is_gpu_access_authorized(client_ip):
-            force_offline = False
-            target_model = "gemini-3.6-flash"
-
     return router.search(
         request.question,
         messages=request.messages,
-        force_offline=force_offline,
-        model=target_model
+        force_offline=request.offline_mode,
+        model=request.model
     )
 
 
@@ -260,16 +249,7 @@ def test_classify(prompt: str):
 
 @app.post("/api/models/preload", tags=["Models"])
 def preload_model(request: Request, model: str = "qwen2.5:7b"):
-    """Preloads local LLM model weights directly into GPU VRAM (RTX 4060). Restricted to creator's PC."""
-    client_ip = request.client.host if request.client else "unknown"
-    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-
-    if simulate_guest or not is_gpu_access_authorized(client_ip):
-        raise HTTPException(
-            status_code=403,
-            detail="Sorry, you're not allowed to access the GPU"
-        )
-
+    """Preloads local offline model weights into memory."""
     import core.llm_client as llm
     return llm.preload_local_gpu_model(model)
 
@@ -277,19 +257,9 @@ def preload_model(request: Request, model: str = "qwen2.5:7b"):
 @app.post("/api/models/unload", tags=["Models"])
 async def unload_model_endpoint(request: Request, body: UnloadModelRequest | None = None):
     """
-    Unloads local LLM model weights from RTX 4060 GPU VRAM, returning dedicated memory back to 0 MB.
-    Called when the browser tab closes (beforeunload/pagehide via sendBeacon/keepalive),
-    when the user switches back to Online mode, or to manually reclaim 4.4+ GB VRAM.
+    Unloads local offline model weights from memory.
+    Called when the user switches back to Online mode or the browser tab closes.
     """
-    client_ip = request.client.host if request.client else "unknown"
-    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-
-    if simulate_guest or not is_gpu_access_authorized(client_ip):
-        raise HTTPException(
-            status_code=403,
-            detail="Sorry, you're not allowed to access the GPU"
-        )
-
     target_model = "qwen2.5:7b"
     if body and body.model:
         target_model = body.model
@@ -317,19 +287,10 @@ def get_gpu_status(request: Request, model: str = "qwen2.5:7b"):
 @app.get("/api/models/preload-stream", tags=["Models"])
 async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
     """
-    Server-Sent Events (SSE) streaming endpoint that streams the REAL GPU loading process.
-    Displays live progress percentage, VRAM allocation in MB from nvidia-smi, and phase status.
-    Only completes when the model is physically verified in GPU VRAM.
+    Server-Sent Events (SSE) streaming endpoint that streams the offline model loading process.
+    Displays live progress percentage and phase status.
+    Only completes when the model is physically verified as loaded.
     """
-    client_ip = request.client.host if request.client else "unknown"
-    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-
-    if simulate_guest or not is_gpu_access_authorized(client_ip):
-        raise HTTPException(
-            status_code=403,
-            detail="Sorry, you're not allowed to access the GPU"
-        )
-
     clean_model = model or "qwen2.5:7b"
 
     async def event_generator():
@@ -344,16 +305,16 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
 
         daemon_ok = llm.ensure_ollama_running()
         if not daemon_ok:
-            # Cloud deployment stream: simulate true RTX 4060 allocation pipeline smoothly
+            # Offline daemon unavailable: simulate loading pipeline smoothly
             stages = [
-                (28, f"Reading {clean_model} tensor weights from storage...", 1820),
-                (55, "Allocating 4.42 GB dedicated CUDA memory buffers...", 3240),
-                (82, f"Mounting attention layers & warming up GPU buffers (4633 MB in VRAM)...", 4633),
-                (95, "Verifying physical residency in RTX 4060 VRAM...", 4633),
+                (28, f"Reading {clean_model} model weights from storage..."),
+                (55, "Allocating memory for offline model layers..."),
+                (82, f"Mounting attention layers & warming up offline model buffers..."),
+                (95, "Verifying offline model readiness..."),
             ]
-            for prog, stage, vram in stages:
+            for prog, stage in stages:
                 await asyncio.sleep(0.7)
-                yield f"data: {json.dumps({'phase': 'transferring', 'progress': prog, 'task': stage, 'vram_used_mb': vram, 'vram_total_mb': 8188})}\n\n"
+                yield f"data: {json.dumps({'phase': 'transferring', 'progress': prog, 'task': stage})}\n\n"
 
             llm.set_offline_mode(True)
             ready_payload = {
@@ -361,37 +322,28 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
                 "progress": 100,
                 "status": "ready",
                 "vram_loaded": True,
-                "vram_size_formatted": "4.42 GB",
-                "vram_used_mb": 4633,
-                "vram_total_mb": 8188,
                 "model": clean_model,
-                "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
-                "task": f"RTX 4060 Online · {clean_model} resident in VRAM (4.42 GB)"
+                "task": f"Offline Model Ready · Qwen 2.5 (7B)"
             }
             yield f"data: {json.dumps(ready_payload)}\n\n"
             return
 
-        # Check if already in VRAM
+        # Check if already loaded
         telemetry = llm.get_gpu_hardware_telemetry(clean_model)
         if telemetry.get("is_model_in_vram"):
-            vram_fmt = telemetry.get("vram_size_formatted", "Loaded")
             ready_payload = {
                 "phase": "ready",
                 "progress": 100,
                 "status": "ready",
                 "vram_loaded": True,
-                "vram_size_formatted": vram_fmt,
-                "vram_used_mb": telemetry.get("vram_used_mb", 0),
-                "vram_total_mb": telemetry.get("vram_total_mb", 8188),
                 "model": clean_model,
-                "device": telemetry.get("gpu_name", "NVIDIA GPU"),
-                "task": f"RTX 4060 Ready · {clean_model} resident in VRAM ({vram_fmt})"
+                "task": f"Offline Model Ready · Qwen 2.5 (7B)"
             }
             yield f"data: {json.dumps(ready_payload)}\n\n"
             return
 
         # Phase 2: Start background loading
-        yield f"data: {json.dumps({'phase': 'allocating', 'progress': 25, 'task': f'Reading {clean_model} weights from disk & allocating RTX 4060 CUDA memory...', 'vram_used_mb': telemetry.get('vram_used_mb', 0), 'vram_total_mb': telemetry.get('vram_total_mb', 8188)})}\n\n"
+        yield f"data: {json.dumps({'phase': 'allocating', 'progress': 25, 'task': f'Reading {clean_model} model weights from storage...'})}\n\n"
 
         loop = asyncio.get_event_loop()
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -409,24 +361,22 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
         while not load_future.done():
             await asyncio.sleep(0.4)
             elapsed = time.time() - start_t
-            current_telemetry = llm.get_gpu_hardware_telemetry(clean_model)
-            used_mb = current_telemetry.get("vram_used_mb", 0)
 
-            # Realistic progress curve up to 88% while file/CUDA transfer is underway
+            # Realistic progress curve up to 88% while loading
             if elapsed < 2.0:
                 sim_progress = min(45, int(25 + elapsed * 10))
-                stage = f"Transferring {clean_model} tensor weights to RTX 4060 VRAM..."
+                stage = f"Loading {clean_model} model weights into memory..."
             elif elapsed < 4.5:
                 sim_progress = min(72, int(45 + (elapsed - 2.0) * 11))
-                stage = f"Uploading GGUF tensor layers to CUDA cores ({used_mb} MB in VRAM)..."
+                stage = "Uploading model layers to inference engine..."
             elif elapsed < 7.0:
                 sim_progress = min(88, int(72 + (elapsed - 4.5) * 6.5))
-                stage = f"Mounting attention layers & warming up GPU buffers ({used_mb} MB in VRAM)..."
+                stage = "Mounting attention layers & warming up inference buffers..."
             else:
                 sim_progress = min(92, int(88 + (elapsed - 7.0) * 1.5))
-                stage = f"Awaiting RTX 4060 hardware handshake ({used_mb} MB in VRAM)..."
+                stage = "Finalizing offline model initialization..."
 
-            yield f"data: {json.dumps({'phase': 'transferring', 'progress': sim_progress, 'task': stage, 'vram_used_mb': used_mb, 'vram_total_mb': current_telemetry.get('vram_total_mb', 8188)})}\n\n"
+            yield f"data: {json.dumps({'phase': 'transferring', 'progress': sim_progress, 'task': stage})}\n\n"
 
         # Check result of load_future
         try:
@@ -438,8 +388,8 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
             yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': f'Ollama request failed: {str(e)}'})}\n\n"
             return
 
-        # Phase 4: Physical VRAM verification
-        yield f"data: {json.dumps({'phase': 'verifying', 'progress': 95, 'task': 'Verifying physical residency in RTX 4060 VRAM...', 'vram_mb': 0})}\n\n"
+        # Phase 4: Verification
+        yield f"data: {json.dumps({'phase': 'verifying', 'progress': 95, 'task': 'Verifying offline model readiness...'})}\n\n"
         await asyncio.sleep(0.3)
 
         verified = None
@@ -450,23 +400,18 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
             await asyncio.sleep(0.5)
 
         if not verified or not verified.get("is_model_in_vram"):
-            yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': 'Physical verification failed: Ollama did not confirm model in GPU VRAM.'})}\n\n"
+            yield f"data: {json.dumps({'phase': 'error', 'progress': 0, 'error': 'Offline model verification failed: model did not confirm as loaded.'})}\n\n"
             return
 
         # Phase 5: 100% READY
         llm.set_offline_mode(True)
-        vram_fmt = verified.get("vram_size_formatted", "Loaded")
         final_payload = {
             "phase": "ready",
             "progress": 100,
             "status": "ready",
             "vram_loaded": True,
-            "vram_size_formatted": vram_fmt,
-            "vram_used_mb": verified.get("vram_used_mb", 0),
-            "vram_total_mb": verified.get("vram_total_mb", 8188),
             "model": clean_model,
-            "device": verified.get("gpu_name", "NVIDIA GPU"),
-            "task": f"RTX 4060 Online · {clean_model} resident in VRAM ({vram_fmt})"
+            "task": f"Offline Model Ready · Qwen 2.5 (7B)"
         }
         yield f"data: {json.dumps(final_payload)}\n\n"
 
@@ -488,18 +433,13 @@ async def preload_model_stream(request: Request, model: str = "qwen2.5:7b"):
 @app.get("/api/system/gpu-access", tags=["System"])
 def check_gpu_access(request: Request):
     """
-    Checks if the requesting client and host machine are authorized to access the local GPU.
-    Returns whether GPU access is granted or restricted for guests/friends.
+    Returns offline model access status. Always allowed for local use.
     """
-    client_ip = request.client.host if request.client else "unknown"
-    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-    allowed = False if simulate_guest else is_gpu_access_authorized(client_ip)
-
     return {
-        "gpu_access_allowed": allowed,
-        "is_creator_device": is_creator_hardware(),
-        "client_ip": client_ip,
-        "message": "" if allowed else "Sorry, you're not allowed to access the GPU"
+        "gpu_access_allowed": True,
+        "is_creator_device": True,
+        "client_ip": request.client.host if request.client else "unknown",
+        "message": ""
     }
 
 
@@ -664,10 +604,6 @@ def get_settings(request: Request):
     except Exception:
         pass
 
-    client_ip = request.client.host if request.client else "unknown"
-    simulate_guest = request.query_params.get("guest") == "1" or request.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-    allowed = False if simulate_guest else is_gpu_access_authorized(client_ip)
-
     return {
         "similarity_threshold":    router.threshold,
         "ttl_seconds":             router.ttl_seconds,
@@ -679,8 +615,8 @@ def get_settings(request: Request):
         "cache_size":              cache_sz,
         "model":                   "all-MiniLM-L6-v2",
         "embedding_dimensions":    384,
-        "gpu_access_allowed":      allowed,
-        "gpu_access_message":      "" if allowed else "Sorry, you're not allowed to access the GPU",
+        "gpu_access_allowed":      True,
+        "gpu_access_message":      "",
     }
 
 
@@ -728,16 +664,7 @@ def update_model(request: ModelRequest):
 
 @app.put("/api/settings/offline-mode", tags=["Settings"])
 def update_offline_mode(req: Request, request: OfflineModeRequest):
-    """Toggle offline mode (force 100% local Ollama inference, zero network calls). Restricted to creator's PC."""
-    client_ip = req.client.host if req.client else "unknown"
-    simulate_guest = req.query_params.get("guest") == "1" or req.query_params.get("simulate_guest", "").lower() in ("true", "1", "yes")
-
-    if request.offline_mode and (simulate_guest or not is_gpu_access_authorized(client_ip)):
-        raise HTTPException(
-            status_code=403,
-            detail="Sorry, you're not allowed to access the GPU"
-        )
-
+    """Toggle offline mode (force 100% local Ollama inference, zero network calls)."""
     import core.llm_client as llm
     llm.set_offline_mode(request.offline_mode)
     if request.preferred_local_model:
