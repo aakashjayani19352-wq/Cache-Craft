@@ -25,6 +25,32 @@ export function getBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_API_URL ?? 'https://cache-craft-production.up.railway.app').replace(/\/+$/, '');
 }
 
+/**
+ * Always returns the local backend URL (http://localhost:8000).
+ * Use this for offline model operations: preload-stream, preload, unload, gpu-status.
+ * These MUST hit the local machine where Ollama and the GPU actually live,
+ * regardless of whether the user opened the Vercel URL or localhost.
+ */
+export function getLocalBackendUrl(): string {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLanOrLocal =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      /^192\.168\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+    if (isLanOrLocal) {
+      // On LAN: use same host but always port 8000
+      return `${window.location.protocol}//${hostname}:8000`;
+    }
+    // On Vercel / cloud: always force localhost:8000 (user's local machine)
+    return 'http://localhost:8000';
+  }
+  return 'http://localhost:8000';
+}
+
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const base = getBaseUrl();
   const res = await fetch(`${base}${path}`, {

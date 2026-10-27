@@ -25,7 +25,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { api, getBaseUrl } from '@/lib/api';
+import { api, getBaseUrl, getLocalBackendUrl } from '@/lib/api';
 
 const SUPERSCRIPTS: Record<string, string> = {
   '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
@@ -209,8 +209,8 @@ function OfflineTransitionModal({
     setCurrentTask('Initializing offline model (Qwen 2.5)...');
     setErrorMessage(null);
 
-    const baseUrl = getBaseUrl();
-    const streamUrl = `${baseUrl}/api/models/preload-stream?model=${encodeURIComponent(targetModel)}`;
+    const localUrl = getLocalBackendUrl();
+    const streamUrl = `${localUrl}/api/models/preload-stream?model=${encodeURIComponent(targetModel)}`;
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -270,8 +270,10 @@ function OfflineTransitionModal({
         eventSourceRef.current = null;
         setCurrentTask('Checking offline model readiness...');
         try {
-          const res = await api.preloadModel(targetModel);
-          if (res.status === 'ready' && res.vram_loaded) {
+          const localUrl = getLocalBackendUrl();
+          const res = await fetch(`${localUrl}/api/models/preload?model=${encodeURIComponent(targetModel)}`, { method: 'POST' });
+          const data = await res.json();
+          if (data.status === 'ready' && data.vram_loaded) {
             setProgress(100);
             setStep('ready');
             setCurrentTask('Offline Model Ready · Qwen 2.5 (7B)');
@@ -533,8 +535,12 @@ export default function ChatClient() {
 
   const fetchGpuTelemetry = useCallback(async () => {
     try {
-      const data = await api.getGpuStatus('qwen2.5:7b');
-      setGpuTelemetry(data);
+      const localUrl = getLocalBackendUrl();
+      const res = await fetch(`${localUrl}/api/models/gpu-status?model=qwen2.5%3A7b`);
+      if (res.ok) {
+        const data = await res.json();
+        setGpuTelemetry(data);
+      }
     } catch {}
   }, []);
 
@@ -590,14 +596,14 @@ export default function ChatClient() {
     const handleTabUnload = () => {
       const isTabOffline = sessionStorage.getItem(OFFLINE_STORAGE_KEY) === 'true';
       if (isTabOffline) {
-        const baseUrl = getBaseUrl();
+        const localUrl = getLocalBackendUrl();
         const payload = JSON.stringify({ model: 'qwen2.5:7b' });
         try {
           if (navigator.sendBeacon) {
             const blob = new Blob([payload], { type: 'application/json' });
-            navigator.sendBeacon(`${baseUrl}/api/models/unload`, blob);
+            navigator.sendBeacon(`${localUrl}/api/models/unload`, blob);
           } else {
-            fetch(`${baseUrl}/api/models/unload`, {
+            fetch(`${localUrl}/api/models/unload`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: payload,
@@ -754,7 +760,13 @@ export default function ChatClient() {
     } else {
       setIsOffline(false);
       api.setOfflineMode(false).catch(() => {});
-      api.unloadModel('qwen2.5:7b')
+      // Unload directly to local backend — model lives on local machine
+      const localUrl = getLocalBackendUrl();
+      fetch(`${localUrl}/api/models/unload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'qwen2.5:7b' })
+      })
         .then(() => {
           fetchGpuTelemetry();
           toast.success('🌐 Online Mode Active: Cloud Gemini with Multi-Tier Cache');
