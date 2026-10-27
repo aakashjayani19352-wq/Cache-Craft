@@ -54,6 +54,9 @@ services:
       - DATABASE_URL=postgresql://cachecraft:cachepassword@db:5432/cachecraft_db
       - REDIS_URL=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
 

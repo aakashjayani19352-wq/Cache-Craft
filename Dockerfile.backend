@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=100 torch --extra-index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir --default-timeout=100 -r requirements.txt
 
 # Pre-download SentenceTransformer model into container cache to avoid cold-start delays
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"

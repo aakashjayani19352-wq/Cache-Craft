@@ -196,7 +196,7 @@ def resolve_auto_model(
             target = get_installed_model_exact_tag("llama3.2", installed)
             return target, category, f"Coding domain detected -> routed to local {target} (Qwen 7B downloading)"
         else:
-            return "gemini-flash-latest", category, "Coding domain detected -> routed to Cloud Gemini"
+            return "gemini-3.6-flash", category, "Coding domain detected -> routed to Cloud Gemini"
 
     elif category == "reasoning":
         if is_model_installed("deepseek-r1:7b", installed):
@@ -209,18 +209,18 @@ def resolve_auto_model(
             target = get_installed_model_exact_tag("llama3.2", installed)
             return target, category, f"Reasoning detected -> routed to local {target}"
         else:
-            return "gemini-flash-latest", category, "Complex multi-step reasoning -> routed to Gemini Flash Cloud"
+            return "gemini-3.6-flash", category, "Complex multi-step reasoning -> routed to Gemini Flash Cloud"
 
     elif category == "conversational":
         if is_model_installed("llama3.2", installed):
             target = get_installed_model_exact_tag("llama3.2", installed)
             return target, category, f"Lightweight conversational query -> dynamically routed to local {target} (instant TTFT & low VRAM)"
         else:
-            return "gemini-flash-latest", category, "Conversational query -> routed to Gemini Flash"
+            return "gemini-3.6-flash", category, "Conversational query -> routed to Gemini Flash"
 
     else:  # general
         if not is_offline:
-            return "gemini-flash-latest", category, "General knowledge query -> routed to high-speed Cloud Gemini"
+            return "gemini-3.6-flash", category, "General knowledge query -> routed to high-speed Cloud Gemini"
         else:
             if is_model_installed("qwen2.5:7b", installed):
                 target = get_installed_model_exact_tag("qwen2.5:7b", installed)

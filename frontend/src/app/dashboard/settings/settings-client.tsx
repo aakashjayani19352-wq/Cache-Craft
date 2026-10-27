@@ -25,9 +25,7 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
-  ShieldCheck,
-  Copy,
-  ExternalLink
+  Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -48,7 +46,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
   const [ttlSeconds, setTtlSeconds] = useState(settings.ttl_seconds ?? 86400);
   const [savingTtl, setSavingTtl] = useState(false);
 
-  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'gemini-flash-latest');
+  const [selectedModel, setSelectedModel] = useState(settings.active_model ?? 'gemini-3.6-flash');
   const [savingModel, setSavingModel] = useState(false);
 
   const [offlineMode, setOfflineMode] = useState(settings.offline_mode ?? false);
@@ -76,13 +74,13 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
       if (tunnelState.status === 'active') {
         await api.tunnelStop();
         setTunnelState({ status: 'inactive', url: null });
-        toast.success('🛑 Cloudflare Tunnel stopped. Remote GPU access disabled.');
+        toast.success('🛑 Cloudflare Tunnel stopped. Remote model access disabled.');
       } else {
         toast.info('⚡ Negotiating Cloudflare HTTPS tunnel (~4s)...');
         const res = await api.tunnelStart();
         if (res && res.status === 'active' && res.url) {
           setTunnelState({ status: 'active', url: res.url });
-          toast.success(`⚡ Remote GPU Live: ${res.url}`);
+          toast.success(`⚡ Remote Model Live: ${res.url}`);
         } else {
           toast.error(res?.message || 'Failed to start tunnel');
         }
@@ -104,8 +102,8 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
 
   async function handleToggleOffline(enabled: boolean) {
     if (enabled && settings.gpu_access_allowed === false) {
-      toast.error("Sorry, you're not allowed to access the GPU", {
-        description: "Offline mode is only available on the host machine's physical GPU.",
+      toast.error("Offline mode is restricted", {
+        description: "Offline mode is only available on the host machine.",
         duration: 4000
       });
       return;
@@ -116,13 +114,13 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
       await api.setOfflineMode(enabled);
       toast.success(
         enabled
-          ? 'Offline Mode enabled: routing 100% through local Ollama'
+          ? 'Offline Mode enabled: routing 100% through offline model (Qwen 2.5)'
           : 'Cloud Mode restored: Gemini Cloud active with local fallback'
       );
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('not allowed') || msg.includes('403')) {
-        toast.error("Sorry, you're not allowed to access the GPU");
+        toast.error("Offline mode is restricted");
       } else {
         toast.error('Failed to update offline mode');
       }
@@ -227,6 +225,13 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
       description: 'Dynamically inspects prompt intent & complexity — switches to best local or cloud model in real time',
     },
     {
+      id: 'gemini-3.6-flash',
+      name: 'Google Gemini 3.6 Flash (Cloud)',
+      provider: 'gemini',
+      type: 'cloud',
+      description: 'High-speed cloud LLM — primary inference engine with automatic local fallback',
+    },
+    {
       id: 'gemini-flash-latest',
       name: 'Google Gemini Flash (Cloud)',
       provider: 'gemini',
@@ -238,7 +243,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
       name: 'Ollama (Qwen 2.5 — 7B Local)',
       provider: 'ollama',
       type: 'local',
-      description: 'Flagship 7B local model on RTX 4060 — state-of-the-art coding, math, and complex reasoning (4.7 GB)',
+      description: 'Flagship 7B offline model — state-of-the-art coding, math, and complex reasoning (4.7 GB)',
     },
     {
       id: 'llama3.2',
@@ -286,7 +291,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                     </Badge>
                   </div>
                   <CardDescription className="text-xs mt-0.5">
-                    Instant failover to local GPU models when network is weak, with optional 100% offline air-gapped mode.
+                    Instant failover to offline models when network is weak, with optional 100% offline air-gapped mode.
                   </CardDescription>
                 </div>
               </div>
@@ -327,7 +332,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                 <span className="text-[11px] font-medium text-muted-foreground">Active Inference Route</span>
                 <span className="text-sm font-bold mt-1 flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full ${offlineMode ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                  {offlineMode ? 'Local Ollama (RTX 4060 GPU)' : 'Gemini Cloud (with Local Fallback)'}
+                  {offlineMode ? 'Offline Model: Qwen 2.5 (7B)' : 'Gemini Cloud (with Local Fallback)'}
                 </span>
               </div>
               <div className="p-3.5 rounded-2xl bg-muted/40 border border-black/[0.04] dark:border-white/[0.06] flex flex-col justify-between">
@@ -646,9 +651,9 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                     <Globe className="w-4 h-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-bold">Cloudflare Remote GPU Tunnel</CardTitle>
+                    <CardTitle className="text-lg font-bold">Cloudflare Remote Tunnel</CardTitle>
                     <CardDescription className="text-xs">
-                      Enable or disable public HTTPS routing to your laptop&apos;s physical RTX 4060 GPU with 1 click.
+                      Enable or disable public HTTPS routing to your local offline model with 1 click.
                     </CardDescription>
                   </div>
                 </div>
@@ -668,8 +673,8 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                   />
                   <span>
                     {tunnelState.status === 'active'
-                      ? 'Tunnel Active · GPU Exposed'
-                      : 'Tunnel Inactive · Private Local Only'}
+                      ? 'Tunnel Active · Model Accessible'
+                      : 'Tunnel Inactive · Local Only'}
                   </span>
                 </Badge>
               </div>
@@ -680,12 +685,12 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                 <div className="space-y-1.5 max-w-xl">
                   <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
                     <Cpu className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>NVIDIA GeForce RTX 4060 Laptop GPU (8GB)</span>
+                    <span>Offline Model: Qwen 2.5 (7B Local)</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
                     {tunnelState.status === 'active'
-                      ? 'Anyone visiting cache-craft.vercel.app or querying from a phone on cellular data will be routed to your physical laptop GPU.'
-                      : 'When disabled, your GPU is completely private and only reachable on your local machine or home Wi-Fi. Turn this on only when you want remote visitors or judges to test your laptop.'}
+                      ? 'Anyone visiting cache-craft.vercel.app or querying from a phone on cellular data will be routed to your local offline model.'
+                      : 'When disabled, your offline model is completely private and only reachable on your local machine or home Wi-Fi.'}
                   </p>
                   {tunnelState.url && (
                     <div className="flex items-center gap-2 pt-2">
@@ -721,7 +726,7 @@ export default function SettingsClient({ settings }: { settings: Settings }) {
                   ) : tunnelState.status === 'active' ? (
                     'Disable Remote Tunnel'
                   ) : (
-                    'Enable Remote GPU Tunnel →'
+                    'Enable Remote Tunnel →'
                   )}
                 </Button>
               </div>

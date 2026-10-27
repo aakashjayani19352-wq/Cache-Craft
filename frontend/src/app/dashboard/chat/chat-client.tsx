@@ -15,7 +15,6 @@ import {
   RotateCcw, 
   Cpu, 
   Globe, 
-  ExternalLink,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
@@ -170,14 +169,12 @@ const SUGGESTIONS = [
 // Subtle, Minimalist Offline GPU Transition Modal — Real Hardware Lifecycle (Non-Gimmick)
 function OfflineTransitionModal({
   isOpen,
-  isLocalHost,
   targetModel = 'qwen2.5:7b',
   gpuTelemetry,
   onClose,
   onSuccess
 }: {
   isOpen: boolean;
-  isLocalHost: boolean;
   targetModel?: string;
   gpuTelemetry?: any;
   onClose: () => void;
@@ -188,10 +185,6 @@ function OfflineTransitionModal({
   const [progress, setProgress] = useState(0);
   const [currentTask, setCurrentTask] = useState('Initializing pipeline...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [vramUsedMb, setVramUsedMb] = useState<number>(0);
-  const [vramTotalMb, setVramTotalMb] = useState<number>(8188);
-  const [vramFormatted, setVramFormatted] = useState<string>('0 GB');
-  const [activeDevice, setActiveDevice] = useState<string>('NVIDIA GeForce RTX 4060 (8GB)');
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -212,8 +205,8 @@ function OfflineTransitionModal({
 
   const handleStartLoad = () => {
     setStep('loading');
-    setProgress(10);
-    setCurrentTask('Connecting to Ollama daemon on port 11434...');
+    setProgress(15);
+    setCurrentTask('Initializing offline model (Qwen 2.5)...');
     setErrorMessage(null);
 
     const baseUrl = getBaseUrl();
@@ -234,19 +227,7 @@ function OfflineTransitionModal({
             setProgress(data.progress);
           }
           if (data.task) {
-            setCurrentTask(data.task);
-          }
-          if (data.vram_used_mb !== undefined) {
-            setVramUsedMb(data.vram_used_mb);
-          }
-          if (data.vram_total_mb !== undefined) {
-            setVramTotalMb(data.vram_total_mb);
-          }
-          if (data.vram_size_formatted) {
-            setVramFormatted(data.vram_size_formatted);
-          }
-          if (data.device) {
-            setActiveDevice(data.device);
+            setCurrentTask(data.task.replace(/RTX 4060|CUDA|GPU VRAM|GPU/gi, 'Offline Model'));
           }
 
           if (data.phase === 'error' || data.error) {
@@ -254,18 +235,17 @@ function OfflineTransitionModal({
             eventSourceRef.current = null;
             setStep('error');
             setProgress(0);
-            setErrorMessage(data.error || 'Failed to allocate model weights to GPU VRAM');
+            setErrorMessage(data.error || 'Failed to initialize offline model');
           } else if (data.phase === 'ready' && data.vram_loaded) {
             es.close();
             eventSourceRef.current = null;
             setProgress(100);
             setStep('ready');
-            const vramStr = data.vram_size_formatted || '4.42 GB';
-            setCurrentTask(`RTX 4060 Online · ${data.model} resident in VRAM (${vramStr})`);
+            setCurrentTask('Offline Model Ready · Qwen 2.5 (7B)');
             onSuccess(data);
             setTimeout(() => {
               onClose();
-            }, 1800);
+            }, 1400);
           }
         } catch (e) {
           console.error('SSE parse error:', e);
@@ -275,33 +255,32 @@ function OfflineTransitionModal({
       es.onerror = async () => {
         es.close();
         eventSourceRef.current = null;
-        setCurrentTask('Checking model residency in RTX 4060 VRAM...');
+        setCurrentTask('Checking offline model readiness...');
         try {
           const res = await api.preloadModel(targetModel);
           if (res.status === 'ready' && res.vram_loaded) {
             setProgress(100);
             setStep('ready');
-            const vramStr = res.vram_size_formatted || '4.42 GB';
-            setCurrentTask(`RTX 4060 Online · ${res.model} resident in VRAM (${vramStr})`);
+            setCurrentTask('Offline Model Ready · Qwen 2.5 (7B)');
             onSuccess(res);
             setTimeout(() => {
               onClose();
-            }, 1800);
+            }, 1400);
           } else {
             setStep('error');
             setProgress(0);
-            setErrorMessage(res.message || 'Model load completed but physical VRAM verification failed.');
+            setErrorMessage(res.message || 'Offline model initialization failed.');
           }
         } catch (err: any) {
           setStep('error');
           setProgress(0);
-          setErrorMessage(err.message || 'Connection to local backend on port 8000 failed.');
+          setErrorMessage(err.message || 'Connection to backend failed.');
         }
       };
     } catch (err: any) {
       setStep('error');
       setProgress(0);
-      setErrorMessage(err.message || 'Failed to initialize preload stream.');
+      setErrorMessage(err.message || 'Failed to initialize offline model.');
     }
   };
 
@@ -340,52 +319,28 @@ function OfflineTransitionModal({
                       Switch to Offline Mode?
                     </h3>
                     <p className="text-xs text-zinc-400">
-                      Private Local GPU Inference · Zero Cloud Network
+                      Private Local Inference · Zero Cloud Network
                     </p>
                   </div>
                 </div>
 
-                {/* Cloud vs Local Warning if accessed remotely */}
-                {!isLocalHost && (
-                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-2">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <AlertCircle className="w-4 h-4 text-amber-400" />
-                      <span>Cloud Deployment Notice</span>
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-amber-200/90">
-                      You are visiting Cache-Craft via cloud deployment. A remote server cannot communicate with your laptop&apos;s physical NVIDIA RTX 4060 GPU.
-                    </p>
-                    <a
-                      href="http://localhost:3000/dashboard/chat"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-xl transition-all shadow-sm"
-                    >
-                      <span>Open Local App (http://localhost:3000)</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Hardware Telemetry Card */}
+                {/* Model Telemetry Card */}
                 <div className="p-3.5 rounded-2xl bg-[#141417] border border-white/[0.08] space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span>Target Compute:</span>
-                    <span className="font-medium text-zinc-200 font-mono">NVIDIA RTX 4060 (8GB)</span>
+                    <span>Offline Model:</span>
+                    <span className="font-medium text-zinc-200 font-mono">Qwen 2.5 (7B)</span>
                   </div>
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span>Local LLM:</span>
-                    <span className="font-medium text-zinc-200 font-mono">Qwen 2.5 (7B Instruct)</span>
+                    <span>Inference Type:</span>
+                    <span className="font-medium text-zinc-200 font-mono">Local Private Execution</span>
                   </div>
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span>Hardware Residency:</span>
+                    <span>Model Status:</span>
                     <span className={`font-mono font-medium ${gpuTelemetry?.is_model_in_vram ? 'text-emerald-400' : 'text-amber-400'}`}>
                       {gpuTelemetry?.is_model_in_vram 
-                        ? `Physically in VRAM (${gpuTelemetry.vram_size_formatted || '4.42 GB'}) ✓`
-                        : `${gpuTelemetry?.vram_used_mb || 0} MB in VRAM (Transfer Required)`}
+                        ? 'Offline Model Ready ✓'
+                        : 'Initialization Required'}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-400">
-                    <span>Daemon Pipeline:</span>
-                    <span className="font-medium text-emerald-400">Background Auto-Start</span>
                   </div>
                   <div className="flex items-center justify-between text-zinc-400">
                     <span>Multi-Tier Cache:</span>
@@ -394,7 +349,7 @@ function OfflineTransitionModal({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Confirming will launch the local Ollama daemon and physically transfer ~4.7 GB of model weights into your RTX 4060 GPU VRAM. The system will verify GPU residency before proceeding.
+                  Confirming will initialize the offline model (Qwen 2.5 7B) locally. The system will verify offline model readiness before proceeding.
                 </p>
 
                 {/* Action Buttons */}
@@ -416,12 +371,12 @@ function OfflineTransitionModal({
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all flex items-center gap-1.5"
                   >
                     <Cpu className="w-3.5 h-3.5 text-zinc-900" />
-                    <span>Confirm &amp; Allocate GPU →</span>
+                    <span>Confirm &amp; Switch to Offline Model →</span>
                   </motion.button>
                 </div>
               </div>
             ) : step === 'error' ? (
-              /* Step 3: Real Error Telemetry View */
+              /* Step 3: Error View */
               <div className="py-4 text-center space-y-4 relative z-10 select-none">
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
                   <AlertCircle className="w-7 h-7" />
@@ -429,10 +384,10 @@ function OfflineTransitionModal({
 
                 <div className="space-y-1.5 px-3">
                   <h4 className="text-sm font-semibold text-zinc-100 tracking-tight">
-                    GPU Allocation Incomplete
+                    Offline Model Unavailable
                   </h4>
                   <p className="text-xs text-zinc-400 leading-relaxed max-w-sm mx-auto">
-                    {errorMessage || 'Could not verify Qwen 2.5 resident in GPU VRAM.'}
+                    {errorMessage || 'Could not verify offline model (Qwen 2.5) readiness.'}
                   </p>
                 </div>
 
@@ -451,7 +406,7 @@ function OfflineTransitionModal({
                     onClick={handleStartLoad}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-900 bg-zinc-100 hover:bg-white shadow-sm transition-all"
                   >
-                    Retry Allocation
+                    Retry Initialization
                   </button>
                 </div>
               </div>
@@ -487,33 +442,23 @@ function OfflineTransitionModal({
 
                 <div className="space-y-1">
                   <h4 className="text-xs font-semibold tracking-wider uppercase text-zinc-300 font-mono">
-                    {step === 'ready' ? 'GPU ALLOCATION COMPLETE · READY FOR USE' : 'PHYSICALLY ALLOCATING TO GPU VRAM'}
+                    {step === 'ready' ? 'OFFLINE MODEL READY · READY FOR USE' : 'INITIALIZING OFFLINE MODEL'}
                   </h4>
                   <p className="text-xs text-zinc-400 font-mono tracking-wide px-2 min-h-6 flex items-center justify-center">
                     {currentTask}
                   </p>
                 </div>
 
-                {/* Real Hardware Telemetry Card */}
+                {/* Model Telemetry Card */}
                 <div className="p-3 rounded-2xl bg-[#141417] border border-white/[0.08] space-y-2 text-left text-xs font-mono">
                   <div className="flex items-center justify-between text-zinc-400">
-                    <span>Target GPU:</span>
-                    <span className="text-zinc-200 font-medium">{activeDevice}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-400">
-                    <span>Dedicated VRAM:</span>
-                    <span className="text-emerald-400 font-medium">
-                      {vramUsedMb > 0 ? `${(vramUsedMb / 1024).toFixed(2)} GB / ${(vramTotalMb / 1024).toFixed(1)} GB` : 'Allocating memory...'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-400">
-                    <span>Model Size:</span>
-                    <span className="text-zinc-200">Qwen 2.5 (7B) ~ 4.7 GB</span>
+                    <span>Offline Model:</span>
+                    <span className="text-zinc-200 font-medium">Qwen 2.5 (7B)</span>
                   </div>
                   <div className="flex items-center justify-between text-zinc-400">
                     <span>Status:</span>
                     <span className={step === 'ready' ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
-                      {step === 'ready' ? 'Physically Resident in VRAM ✓' : 'Streaming Tensors to CUDA...'}
+                      {step === 'ready' ? 'Offline Model Ready ✓' : 'Initializing model weights...'}
                     </span>
                   </div>
                 </div>
@@ -531,7 +476,7 @@ function OfflineTransitionModal({
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
-                    <span>CUDA Transfer Progress</span>
+                    <span>Loading Progress</span>
                     <span className="font-semibold text-zinc-200">{progress}%</span>
                   </div>
                 </div>
@@ -555,7 +500,6 @@ export default function ChatClient() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [isLocalHost, setIsLocalHost] = useState(false);
   const [gpuAccessAllowed, setGpuAccessAllowed] = useState(true);
   const [gpuTelemetry, setGpuTelemetry] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -615,7 +559,7 @@ export default function ChatClient() {
     }
   }, [isOffline]);
 
-  // Automatically unload model weights from RTX 4060 GPU VRAM when the browser tab is closed
+  // Automatically unload model weights when the browser tab is closed
   useEffect(() => {
     const handleTabUnload = () => {
       const isTabOffline = sessionStorage.getItem(OFFLINE_STORAGE_KEY) === 'true';
@@ -720,15 +664,6 @@ export default function ChatClient() {
     textareaRef.current?.focus();
     let isGuestMode = false;
     if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const isLocal =
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        /^192\.168\./.test(hostname) ||
-        /^10\./.test(hostname) ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
-      setIsLocalHost(isLocal);
-
       const urlParams = new URLSearchParams(window.location.search);
       // ONLY simulate guest mode if explicitly requested in URL (e.g. ?guest=1 for Viva demos)
       isGuestMode = urlParams.get('guest') === '1' || urlParams.get('simulate_guest') === 'true';
@@ -780,15 +715,15 @@ export default function ChatClient() {
   const handleToggleClick = () => {
     if (!isOffline) {
       if (!gpuAccessAllowed) {
-        toast.error("Sorry, you're not allowed to access the GPU", {
-          description: "Guest simulation active (?guest=1). Remove ?guest=1 from URL to restore full GPU access.",
+        toast.error("Offline mode is restricted in guest simulation", {
+          description: "Remove ?guest=1 from URL to restore offline mode.",
           duration: 4000
         });
         return;
       }
       setShowModal(true);
     } else if (!gpuTelemetry?.is_model_in_vram) {
-      // Model not in GPU VRAM -> open modal to physically warm it up!
+      // Offline model not warmed up -> open modal to initialize
       setShowModal(true);
     } else {
       setIsOffline(false);
@@ -796,7 +731,7 @@ export default function ChatClient() {
       api.unloadModel('qwen2.5:7b')
         .then(() => {
           fetchGpuTelemetry();
-          toast.success('🌐 Online Mode Active: Cloud Gemini · Released 4.4 GB VRAM from GPU');
+          toast.success('🌐 Online Mode Active: Cloud Gemini with Multi-Tier Cache');
         })
         .catch(() => {
           fetchGpuTelemetry();
@@ -808,15 +743,14 @@ export default function ChatClient() {
   const handleOfflineSuccess = async (data: any) => {
     setIsOffline(true);
     await api.setOfflineMode(true, 'qwen2.5:7b').catch(() => {});
-    const vramStr = data?.vram_size_formatted || '4.42 GB';
     setGpuTelemetry({
       is_model_in_vram: true,
-      vram_size_formatted: vramStr,
+      vram_size_formatted: data?.vram_size_formatted || '4.42 GB',
       vram_used_mb: data?.vram_used_mb || 4633,
       vram_total_mb: data?.vram_total_mb || 8188,
-      gpu_name: data?.device || 'NVIDIA GeForce RTX 4060'
+      gpu_name: 'Offline Model: Qwen 2.5 (7B)'
     });
-    toast.success(`⚡ Local GPU Active: Qwen 2.5 (7B) resident in RTX 4060 VRAM (${vramStr})`);
+    toast.success('⚡ Offline Mode Active: Qwen 2.5 (7B)');
   };
 
   const sendQuery = async (queryText: string) => {
@@ -847,7 +781,7 @@ export default function ChatClient() {
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
     const apiUrl = getBaseUrl();
-    const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-flash-latest';
+    const targetModel = isOffline ? 'qwen2.5:7b' : 'gemini-3.6-flash';
 
     try {
       const res = await fetch(`${apiUrl}/api/query`, {
@@ -877,7 +811,7 @@ export default function ChatClient() {
       if (isOffline && (responseContent.includes('Could not connect to Ollama') || responseContent.includes('port 11434 unreachable'))) {
         responseContent = `⚡ **Local LLM Notice**:\n\nCould not reach local Ollama on port 11434. Please ensure Ollama is running (\`ollama serve\` or launch Ollama from your Start menu).`;
       } else if (!isOffline && (responseContent.includes('429') || responseContent.toLowerCase().includes('quota'))) {
-        responseContent = `⚠️ **Cloud Gemini Notice (Rate Limit / Quota Exceeded)**:\n\nGoogle Gemini returned **HTTP 429 (Rate Limit / Quota Exceeded)** on your current API key.\n\n**Quick Solutions:**\n• **Update API Key**: Generate a fresh free key at [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to your Railway environment variables (\`GEMINI_API_KEY\`).\n• **Use Local RTX 4060 GPU**: Open Cache-Craft locally on your laptop at **http://localhost:3000** and use **Offline Mode** to run inference 100% free with zero API limits.`;
+        responseContent = `⚠️ **Cloud Gemini Notice (Rate Limit / Quota Exceeded)**:\n\nGoogle Gemini returned **HTTP 429 (Rate Limit / Quota Exceeded)** on your current API key.\n\n**Quick Solutions:**\n• **Update API Key**: Generate a fresh free key at [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to your environment variables (\`GEMINI_API_KEY\`).\n• **Use Offline Model**: Switch to **Offline Mode (Qwen 2.5 7B)** to run local inference with zero cloud API limits.`;
       }
 
       const assistantMsg: Message = {
@@ -909,9 +843,9 @@ export default function ChatClient() {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       toast.error(`Query Failed: ${msg}`);
 
-      // If user was on cloud Vercel and attempted Offline GPU execution:
+      // If user was on cloud Vercel and attempted Offline execution:
       const helpContent = (!isLocal && isOffline)
-        ? `⚡ **Local RTX 4060 GPU Routing**:\n\nTo execute queries on your physical **RTX 4060 GPU**, open Cache-Craft at **[http://localhost:3000](http://localhost:3000)**!\n\n*(Your browser's security rules prevent cloud HTTPS domains like vercel.app from accessing your laptop's local ports directly. Your local instance is already running at [http://localhost:3000](http://localhost:3000)).*`
+        ? `⚡ **Offline Model Routing**:\n\nTo execute queries with the offline model directly, open Cache-Craft at **[http://localhost:3000](http://localhost:3000)**!\n\n*(Your browser's security rules prevent cloud HTTPS domains like vercel.app from accessing local ports directly. Your local instance is available at [http://localhost:3000](http://localhost:3000)).*`
         : `⚠️ **Connection Error**: ${msg}\n\n*Check that the backend server is reachable.*`;
 
       setMessages((prev) => [
@@ -1014,7 +948,7 @@ export default function ChatClient() {
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border border-white/10 bg-white/[0.05] text-zinc-200 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
               <Cpu className="w-2.5 h-2.5 text-zinc-400" />
-              <span>RTX 4060 Local</span>
+              <span>Offline Model: Qwen 2.5 (7B)</span>
             </span>
           )}
 
@@ -1068,7 +1002,6 @@ export default function ChatClient() {
       {/* Alert & Model Loading Transition Modal */}
       <OfflineTransitionModal
         isOpen={showModal}
-        isLocalHost={isLocalHost}
         targetModel="qwen2.5:7b"
         onClose={() => setShowModal(false)}
         onSuccess={handleOfflineSuccess}
@@ -1108,8 +1041,8 @@ export default function ChatClient() {
                 <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                 <span className="font-semibold tracking-wide">
                   {gpuTelemetry?.is_model_in_vram
-                    ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
-                    : 'Offline · Model Not in GPU (Click to Load)'}
+                    ? 'Offline Model: Qwen 2.5 (7B)'
+                    : 'Offline Model: Qwen 2.5 (Click to Load)'}
                 </span>
               </>
             ) : (
@@ -1162,7 +1095,7 @@ export default function ChatClient() {
                 }}
                 onKeyDown={handleKeyDown}
                 rows={3}
-                placeholder={isOffline ? "Query local RTX 4060 GPU with semantic cache..." : "Ask anything or test semantic cache recall..."}
+                placeholder={isOffline ? "Query offline model (Qwen 2.5 7B) with semantic cache..." : "Ask anything or test semantic cache recall..."}
                 className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder:text-zinc-500 resize-none outline-none leading-relaxed font-normal"
               />
 
@@ -1195,8 +1128,8 @@ export default function ChatClient() {
                         <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                         <span className="font-semibold tracking-wide">
                           {gpuTelemetry?.is_model_in_vram
-                            ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
-                            : 'Offline · Model Not in GPU (Click to Load)'}
+                            ? 'Offline Model: Qwen 2.5 (7B)'
+                            : 'Offline Model: Qwen 2.5 (Click to Load)'}
                         </span>
                       </>
                     ) : (
@@ -1288,7 +1221,7 @@ export default function ChatClient() {
                 >
                   <Zap className="w-4 h-4 text-zinc-300 animate-pulse" />
                   <span className="font-medium tracking-wide">
-                    {isOffline ? "Routing query directly to local RTX 4060 GPU..." : "Routing through multi-tier cache & cloud..."}
+                    {isOffline ? "Routing query directly to offline model (Qwen 2.5)..." : "Routing through multi-tier cache & cloud..."}
                   </span>
                 </motion.div>
               )}
@@ -1341,8 +1274,8 @@ export default function ChatClient() {
                       <Cpu className="w-3.5 h-3.5 text-zinc-300" />
                       <span className="font-semibold tracking-wide">
                         {gpuTelemetry?.is_model_in_vram
-                          ? `Offline · Qwen 2.5 (${gpuTelemetry.vram_size_formatted || '4.4 GB'} in RTX 4060)`
-                          : 'Offline · Model Not in GPU (Click to Load)'}
+                          ? 'Offline Model: Qwen 2.5 (7B)'
+                          : 'Offline Model: Qwen 2.5 (Click to Load)'}
                       </span>
                     </>
                   ) : (
