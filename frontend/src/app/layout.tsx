@@ -10,6 +10,8 @@ import NextTopLoader from 'nextjs-toploader';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import '../styles/globals.css';
 
+import DemoCaptionOverlay from '@/components/demo-caption-overlay';
+
 const META_THEME_COLORS = {
   light: '#ffffff',
   dark: '#09090b'
@@ -54,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           >
             <Providers activeThemeValue={themeToApply}>
               <Toaster />
+              <DemoCaptionOverlay />
               {children}
             </Providers>
           </ThemeProvider>
